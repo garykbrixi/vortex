@@ -101,11 +101,12 @@ class HyenaCascade(nn.Module):
     def __init__(self, 
             config, 
             layer_idx,
+            hyena_filter_groups,
             fir_inner_filter_length=None) -> None:
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
-        self.hyena_filter_groups = config.get("hyena_filter_groups", self.config.hidden_size)
+        self.hyena_filter_groups = hyena_filter_groups
         self.print_activations = config.get("print_activations", False)
         self.ground_truth_activations_path = config.get("ground_truth_activations_path", None)
 
@@ -358,6 +359,7 @@ class ParallelGatedConvBlock(nn.Module):
     def __init__(self, 
             config, 
             layer_idx,
+            hyena_filter_groups,
             fir_inner_filter_length=None) -> None:
         super().__init__()
         self.config = config
@@ -369,7 +371,7 @@ class ParallelGatedConvBlock(nn.Module):
         dtype = config.get("hyena_block_dtype", torch.bfloat16)
         mlp_dtype = config.get("mlp_dtype", torch.bfloat16)
         self.pre_norm, self.post_norm = RMSNorm(config).to(dtype=dtype), RMSNorm(config).to(dtype=dtype)
-        self.filter = HyenaCascade(config, layer_idx, fir_inner_filter_length=fir_inner_filter_length).to(dtype=dtype)
+        self.filter = HyenaCascade(config, layer_idx, hyena_filter_groups, fir_inner_filter_length=fir_inner_filter_length).to(dtype=dtype)
         self.projections = nn.Linear(config.hidden_size, 3 * config.hidden_size, bias=config.qkv_proj_bias)
         self.out_filter_dense = nn.Linear(config.hidden_size, config.hidden_size, bias=config.hyena_out_proj_bias).to(dtype)
         self.mlp = ParallelGatedMLP(config, layer_idx).to(dtype=mlp_dtype)
@@ -459,16 +461,16 @@ def get_block(config, layer_idx, flash_fft=None):
     if layer_idx in config.attn_layer_idxs:
         return AttentionBlock(config, layer_idx)
     elif layer_idx in config.hcl_layer_idxs:
-        block = ParallelGatedConvBlock(config, layer_idx)
+        block = ParallelGatedConvBlock(config, layer_idx, hyena_filter_groups=config.hyena_filter_groups)
         if config.get("use_flashfft", "False"):
             block.filter.fftconv_fn = flash_fft
         return block
     elif layer_idx in config.hcm_layer_idxs:
         block = ParallelGatedConvBlock(
-            config, layer_idx, fir_inner_filter_length=config.hcm_filter_length)
+            config, layer_idx, hyena_filter_groups=config.hyena_filter_groups_medium, fir_inner_filter_length=config.hcm_filter_length)
         return block
     elif layer_idx in config.hcs_layer_idxs:
-        block = ParallelGatedConvBlock(config, layer_idx, fir_inner_filter_length=config.hcs_filter_length)
+        block = ParallelGatedConvBlock(config, layer_idx, hyena_filter_groups=config.hyena_filter_groups_short, fir_inner_filter_length=config.hcs_filter_length)
         return block
     else:
         raise NotImplementedError
@@ -489,8 +491,10 @@ class StripedHyena(nn.Module):
         if config.get("use_flashfft", "True"):
             try:
                 from flashfftconv import FlashFFTConv
+                print('flashfftconv imported')
 
                 self.flash_fft = FlashFFTConv(config.seqlen, dtype=torch.bfloat16)
+
             except ImportError:
                 "flashfftconv not installed"
         else:
