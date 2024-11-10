@@ -665,8 +665,10 @@ class StripedHyena(nn.Module):
             self.logger.info("Adjusting Wqkv for column split (permuting rows)")
             for layer_idx, block in enumerate(self.blocks):
                 if type(block) == AttentionBlock:
+                    breakpoint()
                     Wqkv = state_dict[f"blocks.{layer_idx}.inner_mha_cls.Wqkv.weight"]
-                    bias = state_dict[f"blocks.{layer_idx}.inner_mha_cls.Wqkv.bias"]
+                    
+                    bias = state_dict.get(f"blocks.{layer_idx}.inner_mha_cls.Wqkv.bias", None)
 
                     size_att_head = block.hidden_size_per_attention_head
 
