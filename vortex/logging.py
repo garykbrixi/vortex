@@ -1,5 +1,3 @@
-import sys 
-import rich
 import logging 
 from rich.logging import RichHandler
 

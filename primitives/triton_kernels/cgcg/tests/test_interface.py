@@ -1,7 +1,5 @@
-import pytest
 from savanna.kernels.triton_src.cgcg.interface import TwoPassChunkedGateConvGate
 from savanna.kernels.triton_src.cgcg.src.kernel_utils import (
-    BwdKernelConfig,
     FwdKernelConfig,
 )
 

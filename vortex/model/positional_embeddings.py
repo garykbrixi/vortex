@@ -5,12 +5,10 @@ Wrappers for linearly interpolated rope embeddings to use inside of MHA layers o
 
 """
 
-import copy
 
 import torch
 from einops import rearrange
 from flash_attn.layers.rotary import RotaryEmbedding
-from flash_attn.modules.mha import MHA
 
 
 # simple wrapper for flash-attn RoPE with linear scaling:

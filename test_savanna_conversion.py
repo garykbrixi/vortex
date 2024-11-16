@@ -4,14 +4,11 @@
 
 
 import argparse
-import os
 
 import torch
 import yaml
 
-from vortex.model.generation import Generator
 from vortex.model.model import StripedHyena
-from vortex.model.sample import sample
 from vortex.model.tokenizer import HFAutoTokenizer, CharLevelTokenizer
 from vortex.model.utils import dotdict, print_rank_0
 

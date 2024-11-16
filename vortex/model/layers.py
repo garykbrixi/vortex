@@ -7,7 +7,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange
 from torch import Tensor
 
 from vortex.model.utils import grab_first_if_tuple

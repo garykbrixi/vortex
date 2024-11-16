@@ -15,7 +15,6 @@ from vortex.model.layers import ParallelGatedMLP, RMSNorm, VocabParallelEmbeddin
 from vortex.model.utils import column_split, print_rank_0
 from vortex.logging import initialize_vortex_logger, activations_logger
 
-import logging 
 from tqdm import tqdm
 
 from vortex.model.attention import MHA
@@ -515,7 +514,7 @@ class StripedHyena(nn.Module):
             self.blocks.append(get_block(config, layer_idx, flash_fft=self.flash_fft))
             self.logger.info(f"Parameter count for block {layer_idx}: {sum(p.numel() for p in self.blocks[-1].parameters())}")
 
-        self.logger.info(f"Initialized model")
+        self.logger.info("Initialized model")
 
     def forward(self, x, inference_params_dict=None, padding_mask=None):
         L = x.shape[1]

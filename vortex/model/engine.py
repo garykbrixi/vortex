@@ -6,12 +6,11 @@
 import gc
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from einops import rearrange
 try:
-    import conv1d_cpp
+    pass
 except:
     pass
 from vortex.model.utils import column_split
@@ -113,7 +112,7 @@ def list_tensors(idx):
                 el = obj[0]
                 with open(f"tensors_{idx}.txt", "a") as f:
                     f.write(f"{type(obj)} {obj.size()} {el}\n")
-        except Exception as e:
+        except Exception:
             pass
 
 
