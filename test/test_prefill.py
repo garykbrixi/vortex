@@ -1,4 +1,3 @@
-
 import torch
 import yaml
 from src.model import StripedHyena

@@ -127,7 +127,9 @@ def two_pass_fwd_grouped(
         ), "Must specify all of CHUNK_SIZE, BLOCK_D, NUM_PIPELINE_STAGES"
 
         if version == "v1":
-            assert NUM_PIPELINE_STAGES is not None, "Must specify NUM_PIPELINE_STAGES for version v1"
+            assert (
+                NUM_PIPELINE_STAGES is not None
+            ), "Must specify NUM_PIPELINE_STAGES for version v1"
             kernel: triton.runtime.JITFunction = _two_pass_fwd_grouped_kernel_v1
         elif version == "v2":
             assert CHUNK_TILES_PER_PROGRAM is not None
@@ -140,7 +142,9 @@ def two_pass_fwd_grouped(
         assert dg % BLOCK_D == 0, f"{__file__}: dg must be multiple of BLOCK_D"
 
     if filter_len < 128 and seqlen > 1024 and CHUNK_SIZE is not None:
-        assert CHUNK_SIZE >= 128, f"{__file__}: CHUNK_SIZE must be >= 128 for hl < 128 and seqlen > 1024"
+        assert (
+            CHUNK_SIZE >= 128
+        ), f"{__file__}: CHUNK_SIZE must be >= 128 for hl < 128 and seqlen > 1024"
 
     if CHUNK_TILES_PER_PROGRAM is not None and CHUNK_SIZE is not None:
         assert triton.cdiv(seqlen, CHUNK_SIZE) % CHUNK_TILES_PER_PROGRAM == 0
@@ -195,7 +199,9 @@ def two_pass_fwd_grouped(
         y2 = None
 
     if return_toeplitz:
-        assert CHUNK_SIZE is not None, "CHUNK_SIZE must be specified for return_toeplitz"
+        assert (
+            CHUNK_SIZE is not None
+        ), "CHUNK_SIZE must be specified for return_toeplitz"
         # NOTE: Need to initialize T_hat as zeros, since not all chunks need correction term
         T = torch.zeros(g, CHUNK_SIZE, CHUNK_SIZE, device=x.device, dtype=x.dtype)
         T_hat = torch.zeros_like(T)
@@ -274,7 +280,9 @@ def two_pass_fwd_grouped(
         )
         return compiled_kernel, kernel_args, kernel_constexprs
     else:
-        compiled_kernel: triton.compiler.CompiledKernel = kernel[grid](*kernel_args, **kernel_constexprs)
+        compiled_kernel: triton.compiler.CompiledKernel = kernel[grid](
+            *kernel_args, **kernel_constexprs
+        )
 
         y = y.reshape(bs, seqlen, g, dg)
         if y2 is not None:
@@ -290,7 +298,9 @@ def two_pass_fwd_grouped(
             return y, T, T_hat, y2, bx_lag
         else:
             # Autotune path
-            keys = [k for k in kernel.cache.keys() if kernel.cache[k] == kernel.best_config]
+            keys = [
+                k for k in kernel.cache.keys() if kernel.cache[k] == kernel.best_config
+            ]
             # Filter for best key, as best_config can be the same for multiple keys
             # TODO: improve this since this is a bit hacky
             # Key is best key if the kernel args match those of the current kernel args and the dtype is the same
@@ -298,11 +308,14 @@ def two_pass_fwd_grouped(
             best_key = [
                 k
                 for k in keys
-                if k[: len(kernel.key_idx)] == (bs, seqlen, g, dg) and k[len(kernel.key_idx)] == str(x.dtype)
+                if k[: len(kernel.key_idx)] == (bs, seqlen, g, dg)
+                and k[len(kernel.key_idx)] == str(x.dtype)
             ]
             assert len(best_key) == 1
             # print(f"Autotune Best Config {kernel.best_config} for keys {best_key}")
-            autotune_result = AutotunedResult(best_config=kernel.best_config, key=best_key[0])
+            autotune_result = AutotunedResult(
+                best_config=kernel.best_config, key=best_key[0]
+            )
 
             if return_kernel:
                 return y, T, T_hat, y2, compiled_kernel, autotune_result

@@ -110,7 +110,7 @@ class Generator:
                     inference_params_dict_out["hcl"].seqlen_offset = seqlen_offset
                     inference_params_dict_out["hcm"].seqlen_offset = seqlen_offset
                     inference_params_dict_out["hcs"].seqlen_offset = seqlen_offset
-                    
+
                 else:
                     inference_params_dict_out["mha"].seqlen_offset += 1
                     inference_params_dict_out["hcl"].seqlen_offset += 1
@@ -125,7 +125,7 @@ class Generator:
                 )
 
             last_logits = logits[:, -1]
-            
+
             print(last_logits.shape, last_logits.min(), last_logits.max(), last_logits)
 
             new_idx = sample(

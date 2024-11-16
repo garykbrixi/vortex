@@ -73,7 +73,9 @@ def gcg_two_pass_chunked_bwd(dy, x, y2, B, C, h, gl, return_dT=False):
 
     # Calculate gradient wrt h_local
     Bx = B * x
-    Bx_reshaped = (Bx).reshape(b, num_l_chunks, chunk_size, g, dg).permute(0, 1, 3, 2, 4)
+    Bx_reshaped = (
+        (Bx).reshape(b, num_l_chunks, chunk_size, g, dg).permute(0, 1, 3, 2, 4)
+    )
     Bx_reshaped_transposed = Bx_reshaped.permute(0, 1, 2, 4, 3)
     dT_local = torch.matmul(dy, Bx_reshaped_transposed)
 

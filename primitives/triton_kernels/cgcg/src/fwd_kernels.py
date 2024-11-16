@@ -8,7 +8,10 @@ from savanna.kernels.triton_src.cgcg.src.kernel_utils import (
     get_program_ids,
     is_power_of_2,
 )
-from savanna.kernels.triton_src.cgcg.src.toeplitz_kernels import load_correction_toeplitz, load_toeplitz
+from savanna.kernels.triton_src.cgcg.src.toeplitz_kernels import (
+    load_correction_toeplitz,
+    load_toeplitz,
+)
 
 
 def get_autotune_configs(
@@ -25,10 +28,20 @@ def get_autotune_configs(
     configs = []
     assert is_power_of_2(min_warps) and is_power_of_2(max_warps)
     assert min_chunk_size % 16 == 0 and max_chunk_size % 16 == 0
-    warp_range = [2**i for i in range(int(math.log2(min_warps)), int(math.log2(max_warps) + 1))]
+    warp_range = [
+        2**i for i in range(int(math.log2(min_warps)), int(math.log2(max_warps) + 1))
+    ]
     stage_range = list(range(min_stages, max_stages + 1))
-    chunk_range = [2**i for i in range(int(math.log2(min_chunk_size)), int(math.log2(max_chunk_size) + 1))]
-    d_block_range = [2**i for i in range(int(math.log2(min_d_block)), int(math.log2(max_d_block) + 1))]
+    chunk_range = [
+        2**i
+        for i in range(
+            int(math.log2(min_chunk_size)), int(math.log2(max_chunk_size) + 1)
+        )
+    ]
+    d_block_range = [
+        2**i
+        for i in range(int(math.log2(min_d_block)), int(math.log2(max_d_block) + 1))
+    ]
     configs = [
         triton.Config(
             {
@@ -262,7 +275,9 @@ def _two_pass_fwd_grouped_kernel_v1(
         tl.arange(0, BLOCK_D)[None, :] * col_stride
     )  # not needed, since should be contiguous along feature dim
 
-    for tile_id in tl.range(start_pid, total_tiles, num_programs, num_stages=NUM_PIPELINE_STAGES):
+    for tile_id in tl.range(
+        start_pid, total_tiles, num_programs, num_stages=NUM_PIPELINE_STAGES
+    ):
         pid_batch, pid_d, pid_chunk = get_program_ids(
             tile_id, tiles_per_seq, d_tiles_per_chunk, chunks_per_seq
         )

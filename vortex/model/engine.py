@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 
 from einops import rearrange
+
 try:
     pass
 except:
@@ -27,11 +28,11 @@ IIR_PREFILL_MODES = [
 
 
 def adjust_filter_shape_for_broadcast(u, h):
-    h = h.squeeze() # Standardize to [D, L] from [1, D, L] and [D, 1, L]
+    h = h.squeeze()  # Standardize to [D, L] from [1, D, L] and [D, 1, L]
 
     # Case: u: [B, D, L], k_f: [D, L]
     if len(u.shape) > len(h.shape):
-        h = h.unsqueeze(0) 
+        h = h.unsqueeze(0)
 
     # Case: u: [B, D1, D2, L], k_f: [B, D, L]
     if len(u.shape) > 3:
@@ -40,16 +41,16 @@ def adjust_filter_shape_for_broadcast(u, h):
 
 
 def fftconv_func(
-        u, 
-        k, 
-        D, 
-        dropout_mask, 
-        gelu=True, 
-        k_rev=None, 
-        bidirectional=False,
-        print_activations=False,
-        **kwargs
-    ):
+    u,
+    k,
+    D,
+    dropout_mask,
+    gelu=True,
+    k_rev=None,
+    bidirectional=False,
+    print_activations=False,
+    **kwargs,
+):
     seqlen = u.shape[-1]
     fft_size = 2 * seqlen
 
@@ -59,7 +60,7 @@ def fftconv_func(
 
     if bidirectional:
         u_f = torch.fft.rfft(u.to(dtype=k.dtype), n=fft_size)
-        k, k2 = k.split(k.shape[1] // 2, dim=1)    
+        k, k2 = k.split(k.shape[1] // 2, dim=1)
         k2_f = torch.fft.rfft(k2, n=fft_size) / fft_size
         y1 = u_f * k_f
         y2 = u_f.conj() * k2_f.conj()
@@ -75,12 +76,12 @@ def fftconv_func(
 
         y = torch.fft.irfft(u_f * k_f, n=fft_size, norm="forward")[..., :seqlen]
 
-    if print_activations: 
+    if print_activations:
         activations_logger.info(f"post fftconv pre bias {y} {y.min()} {y.max()}")
 
     out = y + u * D.unsqueeze(-1)
 
-    if print_activations: 
+    if print_activations:
         activations_logger.info(f"post fftconv post bias {out} {out.min()} {out.max()}")
 
     if gelu:
@@ -89,6 +90,7 @@ def fftconv_func(
         return (out * rearrange(dropout_mask, "b H -> b H 1")).to(dtype=u.dtype)
     else:
         return out.to(dtype=u.dtype)
+
 
 def canonicalize_modal_system(poles, residues):
     """Canonicalize a modal system.
@@ -127,7 +129,9 @@ class HyenaInferenceEngine:
         hyena_flip_x1x2=False,
     ) -> None:
         self.fir_fn = fir_fn
-        assert iir_prefill_style in IIR_PREFILL_MODES, f"iir_prefill_style must be one of {IIR_PREFILL_MODES}"
+        assert (
+            iir_prefill_style in IIR_PREFILL_MODES
+        ), f"iir_prefill_style must be one of {IIR_PREFILL_MODES}"
         self.iir_prefill_style = iir_prefill_style
         self.layer_idx = layer_idx
         self.low_mem_mode = False
@@ -155,22 +159,25 @@ class HyenaInferenceEngine:
     ):
         L = u.shape[1] if dim_last else u.shape[2]
         if gate:
-            hidden_size, num_attention_heads, hidden_size_per_attention_head, _, _ = dims
+            hidden_size, num_attention_heads, hidden_size_per_attention_head, _, _ = (
+                dims
+            )
             # Compatibility with training infra that column splits the projections
             if column_split_hyena:
-                x2, x1, v = column_split(u, num_attention_heads, hidden_size_per_attention_head)
+                x2, x1, v = column_split(
+                    u, num_attention_heads, hidden_size_per_attention_head
+                )
             else:
                 x2, x1, v = u.split([hidden_size, hidden_size, hidden_size], dim=1)
             if self.hyena_flip_x1x2:
                 x1, x2 = x2, x1
             u = x1 * v
 
-            if self.print_activations:  
+            if self.print_activations:
                 activations_logger.info(f"q: {x2}, {x2.min()}, {x2.max()}")
                 activations_logger.info(f"k: {x1}, {x1.min()}, {x1.max()}")
                 activations_logger.info(f"v: {v}, {v.min()}, {v.max()}")
                 activations_logger.info(f"pre hyena gate: {u}, {u.min()}, {u.max()}")
-                
 
         # prepare input layout, dimensions and dispatch to fir kernel
         # Deprecated
@@ -183,7 +190,7 @@ class HyenaInferenceEngine:
             with torch.autocast("cuda"):
                 z = fftconv_func(
                     u.to(torch.float32),
-                    weight[:,:,:L].to(torch.float32),
+                    weight[:, :, :L].to(torch.float32),
                     bias,
                     None,
                     gelu=False,
@@ -195,19 +202,19 @@ class HyenaInferenceEngine:
         else:
             if dim_last:
                 u = u.permute(0, 2, 1)  # B, D, L
-                
+
             if groups is None:
                 g = u.shape[1]
             else:
                 g = groups
-            
+
             z = fir_fn(
                 u.to(torch.float32),
                 weight.to(torch.float32),
-                bias=None,  
+                bias=None,
                 stride=1,
                 padding=fir_length - 1,
-                groups=u.shape[1], # always set to D, regardless of filter grouping
+                groups=u.shape[1],  # always set to D, regardless of filter grouping
             )[..., :L]
 
             z = z.to(u.dtype)
@@ -216,11 +223,13 @@ class HyenaInferenceEngine:
                 if self.print_activations:
                     activations_logger.info(f"post dw conv {z} {z.min()} {z.max()}")
                     if self.ground_truth_activations_path:
-                        z_savanna = torch.load(f"{self.ground_truth_activations_path}/post_dw_conv_{self.layer_idx}.pt")
+                        z_savanna = torch.load(
+                            f"{self.ground_truth_activations_path}/post_dw_conv_{self.layer_idx}.pt"
+                        )
                         z_savanna = z_savanna.permute(1, 2, 0)
                         z_diff = (z.squeeze() - z_savanna.squeeze()).abs().max()
                         activations_logger.info(f"dw_conv_diff: {z_diff}")
-            
+
             if bias is not None:
                 if gated_bias:
                     z = z + bias[None, :, None] * u
@@ -235,12 +244,20 @@ class HyenaInferenceEngine:
             z = x2 * z
 
             if self.print_activations:
-                activations_logger.info(f"hyena filter: {weight}, {weight.min()}, {weight.max()}")
+                activations_logger.info(
+                    f"hyena filter: {weight}, {weight.min()}, {weight.max()}"
+                )
                 activations_logger.info(f"post hyena gate: {z}, {z.min()}, {z.max()}")
                 if self.ground_truth_activations_path:
-                    q_savanna = torch.load(f"{self.ground_truth_activations_path}/q_{self.layer_idx}.pt")
-                    k_savanna = torch.load(f"{self.ground_truth_activations_path}/k_{self.layer_idx}.pt")
-                    v_savanna = torch.load(f"{self.ground_truth_activations_path}/v_{self.layer_idx}.pt")
+                    q_savanna = torch.load(
+                        f"{self.ground_truth_activations_path}/q_{self.layer_idx}.pt"
+                    )
+                    k_savanna = torch.load(
+                        f"{self.ground_truth_activations_path}/k_{self.layer_idx}.pt"
+                    )
+                    v_savanna = torch.load(
+                        f"{self.ground_truth_activations_path}/v_{self.layer_idx}.pt"
+                    )
 
                     q_diff = (x2 - q_savanna).abs()
                     k_diff = (x1 - k_savanna).abs()
@@ -250,17 +267,21 @@ class HyenaInferenceEngine:
                     activations_logger.info(f"k_diff: {k_diff.max()}, {k_diff.mean()}")
                     activations_logger.info(f"v_diff: {v_diff.max()}, {v_diff.mean()}")
 
-                    h_savanna = torch.load(f"/home/zymrael/checkpoints/evo2/activations/savanna/hyena_filter_{self.layer_idx}.pt")
-                    h_diff = (weight[..., :h_savanna.shape[-1]].squeeze() - h_savanna.squeeze()).abs()
+                    h_savanna = torch.load(
+                        f"/home/zymrael/checkpoints/evo2/activations/savanna/hyena_filter_{self.layer_idx}.pt"
+                    )
+                    h_diff = (
+                        weight[..., : h_savanna.shape[-1]].squeeze()
+                        - h_savanna.squeeze()
+                    ).abs()
 
                     activations_logger.info(f"h_diff: {h_diff.max()}, {h_diff.mean()}")
-
 
         if inference_params is not None:
             fir_state = u[..., -fir_length + 1 :]
         else:
             fir_state = None
-        
+
         return z, fir_state
 
     def parallel_iir(
@@ -309,7 +330,7 @@ class HyenaInferenceEngine:
             )
         else:
             x2, x1, v = z_pre.split([hidden_size, hidden_size, hidden_size], dim=1)
-        
+
         if self.hyena_flip_x1x2:
             x1, x2 = x2, x1
 
@@ -355,14 +376,19 @@ class HyenaInferenceEngine:
         y = y.to(dtype=x1v.dtype)
         y = (y + x1v * D.unsqueeze(-1)) * x2
 
-
         if self.print_activations:
             activations_logger.info(f"hyena filter: {h}, {h.min()}, {h.max()}")
             activations_logger.info(f"post hyena iir gate: {y}, {y.min()}, {y.max()}")
             if self.ground_truth_activations_path:
-                q_savanna = torch.load(f"{self.ground_truth_activations_path}/q_{self.layer_idx}.pt")
-                k_savanna = torch.load(f"{self.ground_truth_activations_path}/k_{self.layer_idx}.pt")
-                v_savanna = torch.load(f"{self.ground_truth_activations_path}/v_{self.layer_idx}.pt")
+                q_savanna = torch.load(
+                    f"{self.ground_truth_activations_path}/q_{self.layer_idx}.pt"
+                )
+                k_savanna = torch.load(
+                    f"{self.ground_truth_activations_path}/k_{self.layer_idx}.pt"
+                )
+                v_savanna = torch.load(
+                    f"{self.ground_truth_activations_path}/v_{self.layer_idx}.pt"
+                )
 
                 q_diff = (x2 - q_savanna).abs()
                 k_diff = (x1 - k_savanna).abs()
@@ -372,9 +398,13 @@ class HyenaInferenceEngine:
                 activations_logger.info(f"k_diff: {k_diff.max()}, {k_diff.mean()}")
                 activations_logger.info(f"v_diff: {v_diff.max()}, {v_diff.mean()}")
 
-                h_savanna = torch.load(f"/home/zymrael/checkpoints/evo2/activations/savanna/hyena_filter_{self.layer_idx}.pt")
+                h_savanna = torch.load(
+                    f"/home/zymrael/checkpoints/evo2/activations/savanna/hyena_filter_{self.layer_idx}.pt"
+                )
 
-                h_diff = (h[..., :h_savanna.shape[-1]].squeeze() - h_savanna.squeeze()).abs() 
+                h_diff = (
+                    h[..., : h_savanna.shape[-1]].squeeze() - h_savanna.squeeze()
+                ).abs()
                 activations_logger.info(f"h_diff: {h_diff.max()}, {h_diff.mean()}")
 
         if inference_params is not None:
@@ -404,7 +434,9 @@ class HyenaInferenceEngine:
 
         return y.permute(0, 2, 1)
 
-    def step_fir(self, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=False):
+    def step_fir(
+        self, u, fir_state, weight, bias=None, gated_bias=False, flip_filter=False
+    ):
         """Step the FIR filter.
 
         Note:
@@ -415,11 +447,11 @@ class HyenaInferenceEngine:
         h0, h = h0[None], h[None]
 
         # We have to explicitly handle the cases where input prompts are shorter than the FIR state length
-        h = h[..., :fir_state.shape[-1]]
+        h = h[..., : fir_state.shape[-1]]
         if flip_filter:
             h = h.flip(-1)
-        
-        y = h0 * u + torch.sum(fir_state * h, dim=-1)  
+
+        y = h0 * u + torch.sum(fir_state * h, dim=-1)
 
         if bias is not None:
             if gated_bias:
@@ -477,21 +509,35 @@ class HyenaInferenceEngine:
 
         # suppress dummy seqlen dimension
         poles = poles[:, :, 0][None]
-        residues = residues[:, :, 0][None].repeat(x1v_.shape[0], 1, 1, 1)  # b, d, sdim, reim
+        residues = residues[:, :, 0][None].repeat(
+            x1v_.shape[0], 1, 1, 1
+        )  # b, d, sdim, reim
 
         # state: b, d, sdim, reim
         # poles: 1, d, sdim, reim
         # x1v_: b, d, l, sdim, reim
         for i in range(L):
-            state[..., 0] = poles[..., 0] * state[..., 0] - poles[..., 1] * state[..., 1] + x1v_[:, :, i, :, 0]
-            state[..., 1] = poles[..., 0] * state[..., 1] + poles[..., 1] * state[..., 0] + x1v_[:, :, i, :, 1]
+            state[..., 0] = (
+                poles[..., 0] * state[..., 0]
+                - poles[..., 1] * state[..., 1]
+                + x1v_[:, :, i, :, 0]
+            )
+            state[..., 1] = (
+                poles[..., 0] * state[..., 1]
+                + poles[..., 1] * state[..., 0]
+                + x1v_[:, :, i, :, 1]
+            )
             output[:, :, i] = torch.sum(residues * state, dim=-2)[..., 0]  # .real
 
-        inference_params.state_dict[self.layer_idx] = torch.view_as_complex(state.to(dtype=torch.float32))
+        inference_params.state_dict[self.layer_idx] = torch.view_as_complex(
+            state.to(dtype=torch.float32)
+        )
 
         return output
 
-    def prefill_via_hybrid_recurrence(self, inference_params, u, log_poles, x1v_f_a, L, *args, **kwargs):
+    def prefill_via_hybrid_recurrence(
+        self, inference_params, u, log_poles, x1v_f_a, L, *args, **kwargs
+    ):
         """
         Compute the IIR state via hybrid recurrence-convolution over blocks
         """
@@ -559,11 +605,17 @@ class HyenaInferenceEngine:
             fft_size = 2 * L
             poles = torch.view_as_complex(poles.to(torch.float32))
             state_s = poles**t
-            state_S = torch.fft.fft(state_s, n=fft_size).repeat(bs, 1, 1, 1)  # B, D, state_dim, 2 * L
+            state_S = torch.fft.fft(state_s, n=fft_size).repeat(
+                bs, 1, 1, 1
+            )  # B, D, state_dim, 2 * L
             if hyena_filter_groups > 1:
-                state_S = state_S.repeat_interleave(hidden_size // hyena_filter_groups, 1)
+                state_S = state_S.repeat_interleave(
+                    hidden_size // hyena_filter_groups, 1
+                )
             state = torch.fft.ifft(X_s[..., None, :] * state_S, n=fft_size)
-            inference_params.state_dict[layer_idx] = state[..., L - 1].to(dtype=state_dtype)
+            inference_params.state_dict[layer_idx] = state[..., L - 1].to(
+                dtype=state_dtype
+            )
 
     def _compute_state(self, log_poles, u, t, L, *args, **kwargs):
         """

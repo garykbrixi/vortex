@@ -46,6 +46,7 @@ class HyenaCascadeIIRInferenceParams:
         self.state_dim = 16
         self.seqlen_offset = 0
 
+
 @dataclass
 class HyenaCascadeFIRInferenceParams:
     """Inference parameters passed to short and medium Hyena blocks."""

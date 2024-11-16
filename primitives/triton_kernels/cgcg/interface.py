@@ -163,11 +163,17 @@ def two_pass_chunked_gate_conv_gate(
     fwd_kernel_cfg: FwdKernelConfig = None,
     bwd_kernel_cfg: BwdKernelConfig = None,
 ):
-    assert autotune or (fwd_kernel_cfg is not None), "Must specify fwd_kernel_cfg if not autotuning"
+    assert autotune or (
+        fwd_kernel_cfg is not None
+    ), "Must specify fwd_kernel_cfg if not autotuning"
     if autotune and (fwd_kernel_cfg is not None):
-        warnings.warn("WARNING: Both autotune and fwd_kernel_cfg specified, using fwd_kernel_cfg")
+        warnings.warn(
+            "WARNING: Both autotune and fwd_kernel_cfg specified, using fwd_kernel_cfg"
+        )
         autotune = False
-    assert bwd_kernel_cfg is not None, "Must specify bwd_kernel_cfg, autotune not supported for bwd pass"
+    assert (
+        bwd_kernel_cfg is not None
+    ), "Must specify bwd_kernel_cfg, autotune not supported for bwd pass"
     if return_toeplitz:
         # Check that fwd returns toeplitz and that bwd uses load_toeplitz
         if fwd_kernel_cfg is not None:

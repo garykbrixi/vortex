@@ -16,10 +16,18 @@ from vortex.model.utils import dotdict, print_rank_0
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run StripedHyena Model")
-    parser.add_argument("--config_path", required=True, help="Path to configuration file")
-    parser.add_argument("--checkpoint_path", default=None, help="Path to checkpoint file")
-    parser.add_argument("--num_tokens", default=84, help="Number of tokens to generate.")
-    parser.add_argument("--input_file", default="./prompt.txt", help="Path to prompt file.")
+    parser.add_argument(
+        "--config_path", required=True, help="Path to configuration file"
+    )
+    parser.add_argument(
+        "--checkpoint_path", default=None, help="Path to checkpoint file"
+    )
+    parser.add_argument(
+        "--num_tokens", default=84, help="Number of tokens to generate."
+    )
+    parser.add_argument(
+        "--input_file", default="./prompt.txt", help="Path to prompt file."
+    )
     parser.add_argument("--temperature", default=1, type=float)
     parser.add_argument("--repetition_penalty", default=1, type=float)
     parser.add_argument("--penalty_alpha", default=0, type=float)
@@ -30,7 +38,9 @@ if __name__ == "__main__":
         action="store_true",
         help="Use caching to speed up generation.",
     )
-    parser.add_argument("--dry_run", action="store_true", help="Dry run the generation.")
+    parser.add_argument(
+        "--dry_run", action="store_true", help="Dry run the generation."
+    )
 
     torch.set_printoptions(precision=2, threshold=5)
 
@@ -64,7 +74,13 @@ if __name__ == "__main__":
     print_rank_0(f"Prompt: {input_string}", end="\n\n")
 
     with torch.inference_mode():
-        g = Generator(m, tokenizer, top_k=args.top_k, top_p=args.top_p, temperature=args.temperature)
+        g = Generator(
+            m,
+            tokenizer,
+            top_k=args.top_k,
+            top_p=args.top_p,
+            temperature=args.temperature,
+        )
         g.generate(
             num_tokens=args.num_tokens,
             cached_generation=args.cached_generation,

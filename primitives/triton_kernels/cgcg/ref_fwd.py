@@ -94,7 +94,7 @@ def gcg_fwd_ref_corrected(x, B, C, h, use_causal_conv=False, interleave=True):
     ```
 
     This is done to be consistent with cgcg.triton.fwd_kernels.two_pass_fwd_grouped.
-    
+
     Also, the filters are grouped in a blocked arrangement along the feature dimension using `repeat_interleave`
     whereas in the original implementation, the filters were grouped using `repeat`, which stripes
     the filters across feature dimensions.
@@ -127,6 +127,8 @@ def gcg_fwd_ref_corrected(x, B, C, h, use_causal_conv=False, interleave=True):
     y_l_last = y_l_last_flattened.reshape(bs, g, dg, l)
     y = y_l_last.permute(0, 3, 1, 2)
     return C * y
+
+
 def gcg_fwd_ref_corrected_noncausal(x, B, C, h, return_intermediates=False):
     """
     This is same as the original fwd_ref except how we interpret `g` and `dg`
@@ -142,7 +144,7 @@ def gcg_fwd_ref_corrected_noncausal(x, B, C, h, return_intermediates=False):
     ```
 
     This is done to be consistent with cgcg.triton.fwd_kernels.two_pass_fwd_grouped.
-    
+
     Also, the filters are grouped in a blocked arrangement along the feature dimension using `repeat_interleave`
     whereas in the original implementation, the filters were grouped using `repeat`, which stripes
     the filters across feature dimensions.
@@ -157,21 +159,21 @@ def gcg_fwd_ref_corrected_noncausal(x, B, C, h, return_intermediates=False):
 
     # here we assume some weight sharing structure between groups in filters,
     Bx_l_last_flattened = Bx_l_last.reshape(bs, -1, l)  # b, d, l
-    
+
     h_grouped = h.repeat_interleave(dg, dim=0)  # d, 1, hl
-    
 
     y_l_last_flattened = F.conv1d(
-            Bx_l_last_flattened, h_grouped, groups=d, stride=1, padding=hl - 1
-        )[..., : -hl + 1]
+        Bx_l_last_flattened, h_grouped, groups=d, stride=1, padding=hl - 1
+    )[..., : -hl + 1]
 
     y_l_last = y_l_last_flattened.reshape(bs, g, dg, l)
     y = y_l_last.permute(0, 3, 1, 2)
-    
+
     if return_intermediates:
-        return Bx_l_last_flattened, h_grouped, y, C*y
-    
+        return Bx_l_last_flattened, h_grouped, y, C * y
+
     return C * y
+
 
 def gcg_fwd_ref_corrected_causal(x, B, C, h):
     """
@@ -188,7 +190,7 @@ def gcg_fwd_ref_corrected_causal(x, B, C, h):
     ```
 
     This is done to be consistent with cgcg.triton.fwd_kernels.two_pass_fwd_grouped.
-    
+
     Also, the filters are grouped in a blocked arrangement along the feature dimension using `repeat_interleave`
     whereas in the original implementation, the filters were grouped using `repeat`, which stripes
     the filters across feature dimensions.
@@ -197,7 +199,7 @@ def gcg_fwd_ref_corrected_causal(x, B, C, h):
     bs, l, g, dg = x.shape
     hl = h.shape[-1]
     assert hl < 3
-    
+
     d = g * dg
 
     Bx = B * x
@@ -205,14 +207,16 @@ def gcg_fwd_ref_corrected_causal(x, B, C, h):
 
     # here we assume some weight sharing structure between groups in filters,
     Bx_l_last_flattened = Bx_l_last.reshape(bs, -1, l)  # b, d, l
-    
+
     h_grouped = h.repeat_interleave(dg, dim=0)  # d, 1, hl
-    
+
     y_l_last_flattened = causal_conv1d_fn(Bx_l_last_flattened, h_grouped[:, 0])
 
     y_l_last = y_l_last_flattened.reshape(bs, g, dg, l)
     y = y_l_last.permute(0, 3, 1, 2)
     return C * y
+
+
 def gcg_two_pass_chunked_fwd_corrected(x, B, C, h, gl, return_intermediates=False):
     """
     The original gcg_two_pass_chunked_fwd function does not work for g > 1

@@ -5,11 +5,18 @@ import pytest
 import torch
 
 from savanna.kernels.triton_src.cgcg.interface import two_pass_chunked_gate_conv_gate
-from savanna.kernels.triton_src.cgcg.ref_fwd import gcg_fwd_ref_corrected, gcg_two_pass_chunked_fwd_corrected
+from savanna.kernels.triton_src.cgcg.ref_fwd import (
+    gcg_fwd_ref_corrected,
+    gcg_two_pass_chunked_fwd_corrected,
+)
 from savanna.kernels.triton_src.cgcg.src._bwd_tma import two_pass_bwd_grouped_tma
 from savanna.kernels.triton_src.cgcg.src.bwd import two_pass_bwd_grouped
 from savanna.kernels.triton_src.cgcg.src.fwd import two_pass_fwd_grouped
-from savanna.kernels.triton_src.cgcg.src.kernel_utils import BwdKernelConfig, DeviceProps, FwdKernelConfig
+from savanna.kernels.triton_src.cgcg.src.kernel_utils import (
+    BwdKernelConfig,
+    DeviceProps,
+    FwdKernelConfig,
+)
 from savanna.kernels.triton_src.cgcg.utils import correction_toeplitz, toeplitz
 
 from .utils import BwdTestResult, FwdTestResult, set_chunk_size, setup_inputs
