@@ -10,6 +10,7 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{ name = "Michael Poli"}]
 dependencies = [
+    "rich",
     "transformers",
     "tokenizers",
     "flash_attn>=2.0.0"
