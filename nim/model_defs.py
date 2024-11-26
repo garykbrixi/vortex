@@ -21,7 +21,6 @@ class GenerateInputs(BaseModel):
             followed by lines of sequence data. The initial '>' line is
             optional.
         '''),
-        numpy_dtype='bytes',
         min_length=0,    # TODO: check
         max_length=8192, # TODO: check
     )
@@ -30,7 +29,6 @@ class GenerateInputs(BaseModel):
         description=c('''An integer that controls number of tokens that will
             be generated.
         '''),
-        numpy_dtype='uint64',
     )
     temperature: float | None = Field(1.0,
         title='Temperature',
@@ -39,7 +37,6 @@ class GenerateInputs(BaseModel):
             (more deterministic), while values higher than 1.0 make it more
             uniform (more random).
         '''),
-        numpy_dtype='float',
     )
     top_k: int | None = Field(4, ge=1, le=20,
         title='Top K',
@@ -48,7 +45,6 @@ class GenerateInputs(BaseModel):
             decoding by selecting the token with the highest probability.
             Higher values allow for more diverse sampling.
         '''),
-        numpy_dtype='int64',
     )
     top_p: float | None = Field(1.0, ge=0.0, le=1.0,
         title='Top P',
@@ -57,14 +53,12 @@ class GenerateInputs(BaseModel):
             exceeds the top_p threshold. Setting this to 0.0 disables top-p
             sampling.
         '''),
-        numpy_dtype='float',
     )
     enable_scores: bool = Field(False,
         title='Enable Scores Reporting',
         description=c('''A boolean that if set, enables scores reporting in
             the output response.
         '''),
-        numpy_dtype='float',
     )
 
 
@@ -74,19 +68,16 @@ class GenerateOutputs(BaseModel):
     fasta: str = Field(
         title='DNA sequence',
         description='Output DNA sequence in FASTA format',
-        numpy_dtype='bytes',
     )
     scores: list[list[float]] | None = Field(None,
         title='Scores',
         description=c('''Output Scores in [num_tokens,512] shape
             (if requested via enable_scores flag.)
         '''),
-        numpy_dtype='bytes',
     )
     elapsed_ms: int = Field(
         title='Elapsed milliseconds',
         description='Elapsed milliseconds on server side',
-        numpy_dtype='int64',
     )
 
 
@@ -114,7 +105,6 @@ class EmbeddingsInputs(BaseModel):
             followed by lines of sequence data. The initial '>' line is
             optional.
         '''),
-        numpy_dtype='bytes',
         min_length=1,    # TODO: check
         max_length=8192, # TODO: check
     )
@@ -125,7 +115,6 @@ class EmbeddingsInputs(BaseModel):
             first layer. If None, embeddings will be extracted from the
             last layer.'''
         ),
-        numpy_dtype='int16',
     )
 
 class EmbeddingsOutputs(BaseModel):
@@ -136,12 +125,10 @@ class EmbeddingsOutputs(BaseModel):
         description=c('''Output Embeddings in NumPy Zipped (NPZ) format, base64
             encoded.'''
         ),
-        numpy_dtype='bytes',
     )
     elapsed_ms: int = Field(
         title='Elapsed milliseconds on server side',
         description='Elapsed milliseconds on server side',
-        numpy_dtype='int64',
     )
 
 

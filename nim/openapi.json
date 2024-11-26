@@ -247,8 +247,7 @@
                         "maxLength": 8192,
                         "minLength": 1,
                         "title": "FASTA-formatted string",
-                        "description": "A string containing sequence data in FASTA format. The FASTA format begins with a description line starting with '>', followed by lines of sequence data. The initial '>' line is optional.",
-                        "numpy_dtype": "bytes"
+                        "description": "A string containing sequence data in FASTA format. The FASTA format begins with a description line starting with '>', followed by lines of sequence data. The initial '>' line is optional."
                     },
                     "layer_index": {
                         "anyOf": [
@@ -261,8 +260,7 @@
                         ],
                         "title": "Layer Index",
                         "description": "The index of the layer from which to extract embeddings. If set to 1, embeddings will be extracted from the first layer. If None, embeddings will be extracted from the last layer.",
-                        "default": 1,
-                        "numpy_dtype": "int16"
+                        "default": 1
                     }
                 },
                 "additionalProperties": false,
@@ -278,14 +276,12 @@
                         "type": "string",
                         "format": "base64",
                         "title": "Embeddings",
-                        "description": "Output Embeddings in NumPy Zipped (NPZ) format, base64 encoded.",
-                        "numpy_dtype": "bytes"
+                        "description": "Output Embeddings in NumPy Zipped (NPZ) format, base64 encoded."
                     },
                     "elapsed_ms": {
                         "type": "integer",
                         "title": "Elapsed milliseconds on server side",
-                        "description": "Elapsed milliseconds on server side",
-                        "numpy_dtype": "int64"
+                        "description": "Elapsed milliseconds on server side"
                     }
                 },
                 "additionalProperties": false,
@@ -303,8 +299,7 @@
                         "maxLength": 8192,
                         "minLength": 0,
                         "title": "FASTA-formatted string",
-                        "description": "A string containing sequence data in FASTA format. The FASTA format begins with a description line starting with '>', followed by lines of sequence data. The initial '>' line is optional.",
-                        "numpy_dtype": "bytes"
+                        "description": "A string containing sequence data in FASTA format. The FASTA format begins with a description line starting with '>', followed by lines of sequence data. The initial '>' line is optional."
                     },
                     "num_tokens": {
                         "anyOf": [
@@ -319,8 +314,7 @@
                         ],
                         "title": "Number of tokens to generate",
                         "description": "An integer that controls number of tokens that will be generated.",
-                        "default": 4,
-                        "numpy_dtype": "uint64"
+                        "default": 4
                     },
                     "temperature": {
                         "anyOf": [
@@ -333,8 +327,7 @@
                         ],
                         "title": "Temperature",
                         "description": "A float that controls the randomness of the sampling process. Values lower than 1.0 make the distribution sharper (more deterministic), while values higher than 1.0 make it more uniform (more random).",
-                        "default": 1.0,
-                        "numpy_dtype": "float"
+                        "default": 1.0
                     },
                     "top_k": {
                         "anyOf": [
@@ -349,8 +342,7 @@
                         ],
                         "title": "Top K",
                         "description": "An integer that specifies the number of highest probability tokens to consider. When set to 1, it performs greedy decoding by selecting the token with the highest probability. Higher values allow for more diverse sampling.",
-                        "default": 4,
-                        "numpy_dtype": "int64"
+                        "default": 4
                     },
                     "top_p": {
                         "anyOf": [
@@ -365,15 +357,13 @@
                         ],
                         "title": "Top P",
                         "description": "A float between 0 and 1 that enables nucleus sampling. It filters the smallest set of tokens whose cumulative probability exceeds the top_p threshold. Setting this to 0.0 disables top-p sampling.",
-                        "default": 1.0,
-                        "numpy_dtype": "float"
+                        "default": 1.0
                     },
                     "enable_scores": {
                         "type": "boolean",
                         "title": "Enable Scores Reporting",
                         "description": "A boolean that if set, enables scores reporting in the output response.",
-                        "default": false,
-                        "numpy_dtype": "float"
+                        "default": false
                     }
                 },
                 "additionalProperties": false,
@@ -388,8 +378,7 @@
                     "fasta": {
                         "type": "string",
                         "title": "DNA sequence",
-                        "description": "Output DNA sequence in FASTA format",
-                        "numpy_dtype": "bytes"
+                        "description": "Output DNA sequence in FASTA format"
                     },
                     "scores": {
                         "anyOf": [
@@ -407,14 +396,12 @@
                             }
                         ],
                         "title": "Scores",
-                        "description": "Output Scores in [num_tokens,512] shape (if requested via enable_scores flag.)",
-                        "numpy_dtype": "bytes"
+                        "description": "Output Scores in [num_tokens,512] shape (if requested via enable_scores flag.)"
                     },
                     "elapsed_ms": {
                         "type": "integer",
                         "title": "Elapsed milliseconds",
-                        "description": "Elapsed milliseconds on server side",
-                        "numpy_dtype": "int64"
+                        "description": "Elapsed milliseconds on server side"
                     }
                 },
                 "additionalProperties": false,
