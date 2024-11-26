@@ -14,7 +14,7 @@ from nim_service_utils import RouteDefinition, AppMetadata, clean as c
 class GenerateInputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    input_fasta: str = Field(...,
+    fasta: str = Field(...,
         title='FASTA-formatted string',
         description=c('''A string containing sequence data in FASTA format.
             The FASTA format begins with a description line starting with '>',
@@ -50,7 +50,7 @@ class GenerateInputs(BaseModel):
         '''),
         numpy_dtype='int64',
     )
-    top_p: float| None = Field(1.0, ge=0.0, le=1.0,
+    top_p: float | None = Field(1.0, ge=0.0, le=1.0,
         title='Top P',
         description=c('''A float between 0 and 1 that enables nucleus sampling.
             It filters the smallest set of tokens whose cumulative probability
@@ -59,14 +59,28 @@ class GenerateInputs(BaseModel):
         '''),
         numpy_dtype='float',
     )
+    enable_scores: bool = Field(False,
+        title='Enable Scores Reporting',
+        description=c('''A boolean that if set, enables scores reporting in
+            the output response.
+        '''),
+        numpy_dtype='float',
+    )
 
 
 class GenerateOutputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    output_fasta: str = Field(
+    fasta: str = Field(
         title='DNA sequence',
         description='Output DNA sequence in FASTA format',
+        numpy_dtype='bytes',
+    )
+    scores: list[list[float]] | None = Field(None,
+        title='Scores',
+        description=c('''Output Scores in [num_tokens,512] shape
+            (if requested via enable_scores flag.)
+        '''),
         numpy_dtype='bytes',
     )
     elapsed_ms: int = Field(
@@ -93,7 +107,7 @@ class GenerateRoute(RouteDefinition):
 class EmbeddingsInputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    input_fasta: str = Field(...,
+    fasta: str = Field(...,
         title='FASTA-formatted string',
         description=c('''A string containing sequence data in FASTA format.
             The FASTA format begins with a description line starting with '>',

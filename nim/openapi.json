@@ -64,8 +64,8 @@
                         {
                             "title": "Synchronous requests",
                             "requestEjs": {
-                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings}\n\nrequest='{\n \"input_fasta\": \"ATCG\",\n \"layer_index\": 1\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
-                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\nfrom base64 import decodebytes\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"input_fasta\": \"ATCG\",\n        \"layer_index\": 1,\n    },\n)\nprint(r, \"Saving to embeddings.npz:\\n\", r.text[:200], \"...\")\nPath(\"embeddings.npz\").write_bytes(decodebytes(json.loads(r.text)[\"embeddings\"].encode(\"ascii\")))\n"
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings}\n\nrequest='{\n \"fasta\": \"ATCG\",\n \"layer_index\": 1\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\nfrom base64 import decodebytes\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"fasta\": \"ATCG\",\n        \"layer_index\": 1,\n    },\n)\nprint(r, \"Saving to embeddings.npz:\\n\", r.text[:200], \"...\")\nPath(\"embeddings.npz\").write_bytes(decodebytes(json.loads(r.text)[\"embeddings\"].encode(\"ascii\")))\n"
                             }
                         }
                     ]
@@ -117,8 +117,8 @@
                         {
                             "title": "Synchronous requests",
                             "requestEjs": {
-                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/generate}\n\nrequest='{\n \"input_fasta\": \"ATCG\",\n \"top_k\": 4\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
-                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"input_fasta\": \"ATCG\",\n        \"top_k\": 4,\n    },\n)\nprint(r, \"Saving to output.fa:\\n\", r.text[:200], \"...\")\nPath(\"output.fa\").write_text(json.loads(r.text)[\"output_fasta\"])\n"
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/generate}\n\nrequest='{\n \"fasta\": \"ATCG\",\n \"top_k\": 4\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"fasta\": \"ATCG\",\n        \"top_k\": 4,\n    },\n)\nprint(r, \"Saving to output.fa:\\n\", r.text[:200], \"...\")\nPath(\"output.fa\").write_text(json.loads(r.text)[\"fasta\"])\n"
                             }
                         }
                     ]
@@ -242,7 +242,7 @@
         "schemas": {
             "EmbeddingsInputs": {
                 "properties": {
-                    "input_fasta": {
+                    "fasta": {
                         "type": "string",
                         "maxLength": 8192,
                         "minLength": 1,
@@ -268,7 +268,7 @@
                 "additionalProperties": false,
                 "type": "object",
                 "required": [
-                    "input_fasta"
+                    "fasta"
                 ],
                 "title": "EmbeddingsInputs"
             },
@@ -298,7 +298,7 @@
             },
             "GenerateInputs": {
                 "properties": {
-                    "input_fasta": {
+                    "fasta": {
                         "type": "string",
                         "maxLength": 8192,
                         "minLength": 0,
@@ -367,21 +367,47 @@
                         "description": "A float between 0 and 1 that enables nucleus sampling. It filters the smallest set of tokens whose cumulative probability exceeds the top_p threshold. Setting this to 0.0 disables top-p sampling.",
                         "default": 1.0,
                         "numpy_dtype": "float"
+                    },
+                    "enable_scores": {
+                        "type": "boolean",
+                        "title": "Enable Scores Reporting",
+                        "description": "A boolean that if set, enables scores reporting in the output response.",
+                        "default": false,
+                        "numpy_dtype": "float"
                     }
                 },
                 "additionalProperties": false,
                 "type": "object",
                 "required": [
-                    "input_fasta"
+                    "fasta"
                 ],
                 "title": "GenerateInputs"
             },
             "GenerateOutputs": {
                 "properties": {
-                    "output_fasta": {
+                    "fasta": {
                         "type": "string",
                         "title": "DNA sequence",
                         "description": "Output DNA sequence in FASTA format",
+                        "numpy_dtype": "bytes"
+                    },
+                    "scores": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "items": {
+                                        "type": "number"
+                                    },
+                                    "type": "array"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Scores",
+                        "description": "Output Scores in [num_tokens,512] shape (if requested via enable_scores flag.)",
                         "numpy_dtype": "bytes"
                     },
                     "elapsed_ms": {
@@ -394,7 +420,7 @@
                 "additionalProperties": false,
                 "type": "object",
                 "required": [
-                    "output_fasta",
+                    "fasta",
                     "elapsed_ms"
                 ],
                 "title": "GenerateOutputs"
