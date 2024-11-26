@@ -1,0 +1,589 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "NVIDIA NIM API for Evo2",
+        "description": "The NVIDIA NIM REST API. Please see https://docs.nvidia.com/nim/api-reference for more details.",
+        "termsOfService": "https://nvidia.com/legal/terms-of-use",
+        "contact": {
+            "name": "NVIDIA Support",
+            "url": "https://help.nvidia.com/"
+        },
+        "license": {
+            "name": "Apache License Version 2.0",
+            "url": "https://github.com/Zymrael/vortex/blob/b8bf0e53711a6dbf57c9351fe9fdc461e1399028/LICENSE"
+        },
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "https://health.api.nvidia.com/v1/"
+        }
+    ],
+    "paths": {
+        "/biology/arc/evo2/embeddings": {
+            "post": {
+                "summary": "Generate embeddings for DNA sequence",
+                "operationId": "embeddings_biology_arc_evo2_embeddings_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EmbeddingsInputs"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EmbeddingsOutputs"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-nvai-meta": {
+                    "name": "Generate embeddings for DNA sequence",
+                    "returns": "Embeddings for the input DNA sequence at a specific layer.",
+                    "path": "embeddings",
+                    "templates": [
+                        {
+                            "title": "Synchronous requests",
+                            "requestEjs": {
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings}\n\nrequest='{\n \"input_fasta\": \"ATCG\",\n \"layer_index\": 1\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\nfrom base64 import decodebytes\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"input_fasta\": \"ATCG\",\n        \"layer_index\": 1,\n    },\n)\nprint(r, \"Saving to embeddings.npz:\\n\", r.text[:200], \"...\")\nPath(\"embeddings.npz\").write_bytes(decodebytes(json.loads(r.text)[\"embeddings\"].encode(\"ascii\")))\n"
+                            }
+                        }
+                    ]
+                },
+                "description": "Generate embeddings for DNA sequence"
+            }
+        },
+        "/biology/arc/evo2/generate": {
+            "post": {
+                "summary": "Generate DNA sequences",
+                "operationId": "generate_biology_arc_evo2_generate_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GenerateInputs"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/GenerateOutputs"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-nvai-meta": {
+                    "name": "Generate DNA sequences",
+                    "returns": "Generated DNA sequence based on the input parameters.",
+                    "path": "generate",
+                    "templates": [
+                        {
+                            "title": "Synchronous requests",
+                            "requestEjs": {
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/generate}\n\nrequest='{\n \"input_fasta\": \"ATCG\",\n \"top_k\": 4\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"input_fasta\": \"ATCG\",\n        \"top_k\": 4,\n    },\n)\nprint(r, \"Saving to output.fa:\\n\", r.text[:200], \"...\")\nPath(\"output.fa\").write_text(json.loads(r.text)[\"output_fasta\"])\n"
+                            }
+                        }
+                    ]
+                },
+                "description": "Generate DNA sequences"
+            }
+        },
+        "/v1/health/live": {
+            "get": {
+                "summary": "Health Live",
+                "description": "Handler for liveness endpoint.",
+                "operationId": "health_live_v1_health_live_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/health/ready": {
+            "get": {
+                "summary": "Health Ready",
+                "description": "Handler for readiness endpoint.",
+                "operationId": "health_ready_v1_health_ready_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/metrics": {
+            "get": {
+                "summary": "Metrics",
+                "description": "Handler for metrics endpoint.",
+                "operationId": "metrics_v1_metrics_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string",
+                                    "title": "Response Metrics V1 Metrics Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/license": {
+            "get": {
+                "summary": "License",
+                "description": "Handler for license endpoint.",
+                "operationId": "license_v1_license_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LicenseEndpointModel"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/metadata": {
+            "get": {
+                "summary": "Metadata",
+                "description": "Handler for metadata endpoint.",
+                "operationId": "metadata_v1_metadata_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetadataEndpointModel"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/manifest": {
+            "get": {
+                "summary": "Manifest",
+                "description": "Handler for the manifest endpoint.",
+                "operationId": "manifest_v1_manifest_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ManifestEndpointModel"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "EmbeddingsInputs": {
+                "properties": {
+                    "input_fasta": {
+                        "type": "string",
+                        "maxLength": 8192,
+                        "minLength": 1,
+                        "title": "FASTA-formatted string",
+                        "description": "A string containing sequence data in FASTA format. The FASTA format begins with a description line starting with '>', followed by lines of sequence data. The initial '>' line is optional.",
+                        "numpy_dtype": "bytes"
+                    },
+                    "layer_index": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Layer Index",
+                        "description": "The index of the layer from which to extract embeddings. If set to 1, embeddings will be extracted from the first layer. If None, embeddings will be extracted from the last layer.",
+                        "default": 1,
+                        "numpy_dtype": "int16"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "input_fasta"
+                ],
+                "title": "EmbeddingsInputs"
+            },
+            "EmbeddingsOutputs": {
+                "properties": {
+                    "embeddings": {
+                        "type": "string",
+                        "format": "base64",
+                        "title": "Embeddings",
+                        "description": "Output Embeddings in NumPy Zipped (NPZ) format, base64 encoded.",
+                        "numpy_dtype": "bytes"
+                    },
+                    "elapsed_ms": {
+                        "type": "integer",
+                        "title": "Elapsed milliseconds on server side",
+                        "description": "Elapsed milliseconds on server side",
+                        "numpy_dtype": "int64"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "embeddings",
+                    "elapsed_ms"
+                ],
+                "title": "EmbeddingsOutputs"
+            },
+            "GenerateInputs": {
+                "properties": {
+                    "input_fasta": {
+                        "type": "string",
+                        "maxLength": 8192,
+                        "minLength": 0,
+                        "title": "FASTA-formatted string",
+                        "description": "A string containing sequence data in FASTA format. The FASTA format begins with a description line starting with '>', followed by lines of sequence data. The initial '>' line is optional.",
+                        "numpy_dtype": "bytes"
+                    },
+                    "num_tokens": {
+                        "anyOf": [
+                            {
+                                "type": "integer",
+                                "maximum": 8192.0,
+                                "minimum": 1.0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Number of tokens to generate",
+                        "description": "An integer that controls number of tokens that will be generated.",
+                        "default": 4,
+                        "numpy_dtype": "uint64"
+                    },
+                    "temperature": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Temperature",
+                        "description": "A float that controls the randomness of the sampling process. Values lower than 1.0 make the distribution sharper (more deterministic), while values higher than 1.0 make it more uniform (more random).",
+                        "default": 1.0,
+                        "numpy_dtype": "float"
+                    },
+                    "top_k": {
+                        "anyOf": [
+                            {
+                                "type": "integer",
+                                "maximum": 20.0,
+                                "minimum": 1.0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Top K",
+                        "description": "An integer that specifies the number of highest probability tokens to consider. When set to 1, it performs greedy decoding by selecting the token with the highest probability. Higher values allow for more diverse sampling.",
+                        "default": 4,
+                        "numpy_dtype": "int64"
+                    },
+                    "top_p": {
+                        "anyOf": [
+                            {
+                                "type": "number",
+                                "maximum": 1.0,
+                                "minimum": 0.0
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Top P",
+                        "description": "A float between 0 and 1 that enables nucleus sampling. It filters the smallest set of tokens whose cumulative probability exceeds the top_p threshold. Setting this to 0.0 disables top-p sampling.",
+                        "default": 1.0,
+                        "numpy_dtype": "float"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "input_fasta"
+                ],
+                "title": "GenerateInputs"
+            },
+            "GenerateOutputs": {
+                "properties": {
+                    "output_fasta": {
+                        "type": "string",
+                        "title": "DNA sequence",
+                        "description": "Output DNA sequence in FASTA format",
+                        "numpy_dtype": "bytes"
+                    },
+                    "elapsed_ms": {
+                        "type": "integer",
+                        "title": "Elapsed milliseconds",
+                        "description": "Elapsed milliseconds on server side",
+                        "numpy_dtype": "int64"
+                    }
+                },
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                    "output_fasta",
+                    "elapsed_ms"
+                ],
+                "title": "GenerateOutputs"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "LicenseEndpointModel": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "title": "Name",
+                        "description": "The name of the license for the NIM container."
+                    },
+                    "path": {
+                        "type": "string",
+                        "title": "Path",
+                        "description": "The filepath within the container containing the license content."
+                    },
+                    "sha": {
+                        "type": "string",
+                        "title": "Sha",
+                        "description": "A SHA1 hash of the license contents."
+                    },
+                    "size": {
+                        "type": "integer",
+                        "title": "Size",
+                        "description": "The number of characters in the license content."
+                    },
+                    "url": {
+                        "type": "string",
+                        "title": "Url",
+                        "description": "The url where this license is hosted externally."
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "file"
+                        ],
+                        "const": "file",
+                        "title": "Type",
+                        "description": "The format of the license content."
+                    },
+                    "content": {
+                        "type": "string",
+                        "title": "Content",
+                        "description": "The license text."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "path",
+                    "sha",
+                    "size",
+                    "url",
+                    "type",
+                    "content"
+                ],
+                "title": "LicenseEndpointModel",
+                "description": "A model representing the license response."
+            },
+            "ManifestEndpointModel": {
+                "properties": {
+                    "manifest_file": {
+                        "type": "string",
+                        "title": "Manifest File",
+                        "description": "The content of the manifest file describing the required model artifacts."
+                    },
+                    "repository_override": {
+                        "type": "string",
+                        "title": "Repository Override",
+                        "description": "Alternate location used to retrieve artifacts from manifest file."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "manifest_file",
+                    "repository_override"
+                ],
+                "title": "ManifestEndpointModel",
+                "description": "A model representing the manifest response."
+            },
+            "MetadataEndpointModel": {
+                "properties": {
+                    "assetInfo": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "title": "Assetinfo",
+                        "description": "A list of required container assets excluding model artifacts"
+                    },
+                    "licenseInfo": {
+                        "$ref": "#/components/schemas/LicenseEndpointModel",
+                        "description": "The license info."
+                    },
+                    "modelInfo": {
+                        "items": {
+                            "$ref": "#/components/schemas/ModelInfo"
+                        },
+                        "type": "array",
+                        "title": "Modelinfo",
+                        "description": "A list of models being served by the NIM."
+                    },
+                    "repository_override": {
+                        "type": "string",
+                        "title": "Repository Override",
+                        "description": "Alternate location used to retrieve artifacts from manifest file."
+                    },
+                    "version": {
+                        "type": "string",
+                        "title": "Version",
+                        "description": "The version of the NIM service."
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "assetInfo",
+                    "licenseInfo",
+                    "modelInfo",
+                    "repository_override",
+                    "version"
+                ],
+                "title": "MetadataEndpointModel",
+                "description": "A model representing the metadata response."
+            },
+            "ModelInfo": {
+                "properties": {
+                    "modelUrl": {
+                        "type": "string",
+                        "title": "Modelurl"
+                    },
+                    "shortName": {
+                        "type": "string",
+                        "title": "Shortname"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "modelUrl",
+                    "shortName"
+                ],
+                "title": "ModelInfo",
+                "description": "A model representing the model response."
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        }
+    }
+}
