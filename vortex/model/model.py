@@ -513,35 +513,66 @@ class StripedHyena(nn.Module):
         self.print_activations = config.get("print_activations", False)
         self.ground_truth_activations_path = config.get("ground_truth_activations_path", None)
         self.logger.info(f"Initializing StripedHyena with config: {config}")
-        self.embedding_layer = VocabParallelEmbedding(config)
-        self.norm = RMSNorm(config) if config.get("final_norm", True) else None
-        self.unembed = self.embedding_layer if config.tie_embeddings else VocabParallelEmbedding(config)
+
+        # Determine if we should use GPU
+        self.use_cuda = torch.cuda.is_available() and config.get("use_cuda", True)
+        
+        # Helper function to get device
+        def get_device(layer_idx=None):
+            if not self.use_cuda:
+                return "cpu"
+            layers_per_gpu = config.num_layers // config.get("pipeline_parallel_num", torch.cuda.device_count())
+            device_idx = layer_idx // layers_per_gpu if layer_idx is not None else 0
+            return f"cuda:{device_idx}"
+
+        # Initialize on appropriate device
+        self.embedding_layer = VocabParallelEmbedding(config).to(get_device())
+        self.unembed = self.embedding_layer if config.tie_embeddings else VocabParallelEmbedding(config).to(get_device())
 
         if config.get("use_flashfft", "True"):
             try:
                 from flashfftconv import FlashFFTConv
-
                 self.flash_fft = FlashFFTConv(config.seqlen, dtype=torch.bfloat16)
             except ImportError:
-                "flashfftconv not installed"
+                self.logger.warning("flashfftconv not installed")
+                self.flash_fft = None
         else:
             self.flash_fft = None
 
         self.logger.info(f"Initializing {config.num_layers} blocks...")
         self.blocks = nn.ModuleList()
+        self.block_idx_to_device = {}
+        
         for layer_idx in tqdm(range(config.num_layers)):
-            self.blocks.append(get_block(config, layer_idx, flash_fft=self.flash_fft))
+            device = get_device(layer_idx)
+            block = get_block(config, layer_idx, flash_fft=self.flash_fft)
+            block = block.to(device)
+            self.blocks.append(block)
+            self.block_idx_to_device[layer_idx] = device
             self.logger.info(f"Parameter count for block {layer_idx}: {sum(p.numel() for p in self.blocks[-1].parameters())}")
 
-        self.logger.info(f"Initialized model")
+        # Initialize norm
+        self.norm = RMSNorm(config) if config.get("final_norm", True) else None
+        if self.norm:
+            self.norm = self.norm.to(get_device(0))
+
+        self.logger.info(f"Initialized model on {'GPU' if self.use_cuda else 'CPU'}")
 
     def forward(self, x, inference_params_dict=None, padding_mask=None):
+        def debug_tensor(name, x):
+            print(f"{name}:")
+            print(f"  shape: {x.shape}")
+            print(f"  device: {x.device}")
+            print(f"  min/max: {x.min().item():.3f}, {x.max().item():.3f}")
+            print(f"  mean/std: {x.mean().item():.3f}, {x.std().item():.3f}")
+            print(f"  has nan: {torch.isnan(x).any().item()}")
+
         L = x.shape[1]
         if self.print_activations:
             activations_logger.info(f"pre embedding: {x}, {x.min()}, {x.max()}")
         
         x = self.embedding_layer.embed(x)
-        
+        debug_tensor("After embed", x)
         if self.print_activations:
             activations_logger.info(f"post embedding: {x}, {x.min()}, {x.max()}")
         
@@ -552,16 +583,21 @@ class StripedHyena(nn.Module):
             )
         else:
             x, inference_params_dict_out = self.stateless_forward(x, padding_mask=padding_mask)
+        debug_tensor("After blocks", x)
 
         if self.print_activations:
             activations_logger.info(f"pre norm: {x}, {x.min()}, {x.max()}")
+        
+        #unembed is on 1st device due to
+        x = x.to(self.block_idx_to_device[0])
 
         x = self.norm(x)
-        
+
         if self.print_activations:
             activations_logger.info(f"post norm: {x}, {x.min()}, {x.max(), {self.norm.scale}}")
 
         x = self.unembed.unembed(x)
+        
         return x, inference_params_dict_out
 
     def block_idx_to_name(self, block_idx):
@@ -577,6 +613,8 @@ class StripedHyena(nn.Module):
             raise ValueError(f"Block index {block_idx} not found")
 
     def stateful_forward(self, x, inference_params_dict=None):
+        
+        current_device = self.block_idx_to_device[0]
         for block_idx, block in enumerate(self.blocks):
             inference_params = inference_params_dict[self.block_idx_to_name(block_idx)]
 
@@ -586,9 +624,12 @@ class StripedHyena(nn.Module):
                     x_savanna = torch.load(f"{self.ground_truth_activations_path}/pre_block_{block_idx}.pt")
                     activation_diff = (x - x_savanna.squeeze()).abs()
                     activations_logger.info(f"pre block {block_idx} activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
-
-            x, _ = block(x, inference_params=inference_params)
             
+            x, current_device = self._sync_if_cross_device(x, self.block_idx_to_device[block_idx], current_device)
+            x = x.to(self.block_idx_to_device[block_idx])
+            x, _ = block(x, inference_params=inference_params)
+            torch.cuda.synchronize(current_device)
+
             if self.print_activations:
                 activations_logger.info(f"post block {block_idx}: {x}, {x.min()}, {x.max()}")
                 if self.ground_truth_activations_path:
@@ -602,24 +643,77 @@ class StripedHyena(nn.Module):
         if type(padding_mask) == torch.Tensor:
             x = x * padding_mask[..., None]
 
+        def detailed_debug(block_idx, x, stage=""):
+            if 15 <= block_idx <= 20:
+                print(f"\nBlock {block_idx} {stage}")
+                print(f"Device: {x.device}")
+                print(f"Shape: {x.shape}")
+                has_nan = torch.isnan(x).any().item()
+                print(f"Has NaN: {has_nan}")
+                if not has_nan:
+                    print(f"Min: {x.min().item():.6f}")
+                    print(f"Max: {x.max().item():.6f}")
+                    print(f"Mean: {x.mean().item():.6f}")
+                    print(f"Std: {x.std().item():.6f}")
+                    # Get the maximum absolute values to check for potential explosions
+                    abs_vals = x.abs()
+                    print(f"Max abs value: {abs_vals.max().item():.6f}")
+                    print(f"99th percentile: {torch.quantile(abs_vals.float(), 0.99).item():.6f}")
+
+        current_device = self.block_idx_to_device[0]
         for block_idx, block in enumerate(self.blocks):
+            detailed_debug(block_idx, x, 'presync')
             if self.print_activations:
                 activations_logger.info(f"pre block {block_idx}: {x}, {x.min()}, {x.max()} {block.__class__}")
                 if self.ground_truth_activations_path:
                     x_savanna = torch.load(f"{self.ground_truth_activations_path}/pre_block_{block_idx}.pt")
                     activation_diff = (x - x_savanna.squeeze()).abs()
                     activations_logger.info(f"pre block {block_idx} activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
+            
+            if block_idx == 17:
+                # Check block parameters
+                print("\nBlock parameter check:")
+                for name, param in block.named_parameters():
+                    print(f"{name}: device={param.device}, sum={param.sum().item()}")
+                    
 
+            x, current_device = self._sync_if_cross_device(x, self.block_idx_to_device[block_idx], current_device)
+            detailed_debug(block_idx, x, 'postsync')
+
+            x = x.to(self.block_idx_to_device[block_idx])
             x, _ = block(x, inference_params=None, padding_mask=padding_mask)
+            print(block_idx)
+            print(torch.isnan(x).any().item())
+
             if self.print_activations:
                 activations_logger.info(f"post block {block_idx}: {x}, {x.min()}, {x.max()}")
                 if self.ground_truth_activations_path:
                     x_savanna = torch.load(f"{self.ground_truth_activations_path}/post_block_{block_idx}.pt")
                     activation_diff = (x - x_savanna.squeeze()).abs()
                     activations_logger.info(f"post block {block_idx} activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
-
+                    
         return x, None
+    
+    def _sync_if_cross_device(self, x, next_device, current_device):
+        if next_device != current_device:
+            # Synchronize and switch
+            print('syncing!')
+            torch.cuda.synchronize(current_device)
+            pre_transfer_sum = x.sum().item()
+            
+            x = x.to(next_device)
+            
+            # Verify transfer was exact
+            post_transfer_sum = x.sum().item()
+            print(f"Pre-transfer sum: {pre_transfer_sum}")
+            print(f"Post-transfer sum: {post_transfer_sum}")
+            print(f"Transfer difference: {abs(post_transfer_sum - pre_transfer_sum)}")
+            torch.cuda.synchronize(next_device)
 
+            current_device = next_device
+        
+        return x, current_device
+    
     def initialize_inference_params(self):
         inference_params_dict = {
             "mha": InferenceParams(
@@ -690,9 +784,12 @@ class StripedHyena(nn.Module):
             self.logger.info("Adjusting Wqkv for column split (permuting rows)")
             for layer_idx, block in enumerate(self.blocks):
                 if type(block) == AttentionBlock:
-                    Wqkv = state_dict[f"blocks.{layer_idx}.inner_mha_cls.Wqkv.weight"]
+                    target_device = self.block_idx_to_device[layer_idx]
+                    Wqkv = state_dict[f"blocks.{layer_idx}.inner_mha_cls.Wqkv.weight"].to(target_device)
                     try:
                         bias = state_dict[f"blocks.{layer_idx}.inner_mha_cls.Wqkv.bias"]
+                        if bias is not None:
+                            bias = bias.to(target_device)
                     except:
                         bias = None
 
@@ -718,9 +815,7 @@ class StripedHyena(nn.Module):
                         try:
                             block.inner_mha_cls.Wqkv.bias.data = bias
                         except:
-                            # catch cases with strict_load False and spurious biases in the checkpoint
                             pass
-
     
     def to_bfloat16_except_pr_lc(self):
         """Convert all parameters to bfloat16 except for the poles and residues.

@@ -24,7 +24,7 @@ class Generator:
 
     def generate(
         self,
-        device,
+        device="cuda:0",  # Default to first device but mainly for tracking/metrics
         input_string=None,
         input_ids=None,
         num_tokens=32,
@@ -35,22 +35,21 @@ class Generator:
         stop_at_eos=True,
         max_seqlen=None,
     ):
+        # EOS token handling - always keep on first device
         if isinstance(self.tokenizer.eos, int):
-            eos_token_ids = torch.LongTensor([self.tokenizer.eos]).to(device)
+            eos_token_ids = torch.LongTensor([self.tokenizer.eos]).to("cuda:0")
         else:
-            # is a tensor
-            eos_token_ids = self.tokenizer.tokenize(self.tokenizer.eos).to(device)
+            eos_token_ids = self.tokenizer.tokenize(self.tokenizer.eos).to("cuda:0")
 
+        # Input processing - ensure starting on first device
         if input_ids is None:
             input = self.tokenizer.tokenize(input_string)
             if isinstance(input, list):
-                input = torch.LongTensor(input).unsqueeze(0).to(device)
-            # is a tensor
+                input = torch.LongTensor(input).unsqueeze(0).to("cuda:0")
             else:
-                input = input.unsqueeze(0).to(device)
-
+                input = input.unsqueeze(0).to("cuda:0")
         else:
-            input = input_ids
+            input = input_ids.to("cuda:0")
         x = input
 
         print(input_string, input)
@@ -59,16 +58,16 @@ class Generator:
             x = x[:, -max_seqlen:]
 
         prompt_len = x.shape[-1]
-
         num_tokens = int(num_tokens)
         tot_length = prompt_len + num_tokens
         batch_size = x.shape[0]
 
+        # Keep generation outputs on first device
         generation = torch.empty(
             x.shape[0],
             num_tokens,
             dtype=torch.long,
-            device=x.device,
+            device="cuda:0",
         )
 
         scores = torch.empty(
@@ -76,21 +75,26 @@ class Generator:
             num_tokens,
             self.tokenizer.vocab_size,
             dtype=torch.float,
-            device=x.device,
+            device="cuda:0",
         )
 
         if cached_generation:
             inference_params_dict_out = self.model.initialize_inference_params()
-            inference_params_dict_out["mha"].max_batch_size = batch_size
-            inference_params_dict_out["hcl"].max_batch_size = batch_size
-            inference_params_dict_out["hcm"].max_batch_size = batch_size
-            inference_params_dict_out["hcs"].max_batch_size = batch_size
+            # Set batch size for each block type on their respective devices
+            for block_type in ["mha", "hcl", "hcm", "hcs"]:
+                for layer_idx, block in enumerate(self.model.blocks):
+                    if block_type in str(block.__class__).lower():
+                        device = self.model.block_idx_to_device[layer_idx]
+                        with torch.device(device):
+                            inference_params_dict_out[block_type].max_batch_size = batch_size
         else:
             inference_params_dict_out = None
 
         if verbose:
-            mem_after_tok = torch.cuda.memory_allocated(device=x.device) / 1e9
-            print_rank_0(f"Memory after tokenization: {mem_after_tok} GB")
+            # Track memory across all devices
+            total_mem = sum(torch.cuda.memory_allocated(f"cuda:{i}") 
+                        for i in range(torch.cuda.device_count())) / 1e9
+            print_rank_0(f"Total memory after tokenization across devices: {total_mem:.2f} GB")
             print_rank_0("Starting generation...")
             if input_string is not None:
                 print_rank_0("Prompt: " + input_string)
@@ -99,32 +103,40 @@ class Generator:
 
         for i in range(int(num_tokens)):
             post_prefill = cached_generation and i > 0
-            # prefill then process only the last token
+            
             if post_prefill:
                 x = x[:, -1:]
                 seqlen_offset = inference_params_dict_out["mha"].seqlen_offset
 
                 if seqlen_offset == 0:
                     seqlen_offset = input.shape[-1]
-                    inference_params_dict_out["mha"].seqlen_offset = seqlen_offset
-                    inference_params_dict_out["hcl"].seqlen_offset = seqlen_offset
-                    inference_params_dict_out["hcm"].seqlen_offset = seqlen_offset
-                    inference_params_dict_out["hcs"].seqlen_offset = seqlen_offset
-                    
+                    # Update seqlen offset for each block type on their respective devices
+                    for block_type in ["mha", "hcl", "hcm", "hcs"]:
+                        for layer_idx, block in enumerate(self.model.blocks):
+                            if block_type in str(block.__class__).lower():
+                                device = self.model.block_idx_to_device[layer_idx]
+                                with torch.device(device):
+                                    inference_params_dict_out[block_type].seqlen_offset = seqlen_offset
                 else:
-                    inference_params_dict_out["mha"].seqlen_offset += 1
-                    inference_params_dict_out["hcl"].seqlen_offset += 1
-                    inference_params_dict_out["hcm"].seqlen_offset += 1
-                    inference_params_dict_out["hcs"].seqlen_offset += 1
+                    # Increment seqlen offset for each block type on their respective devices
+                    for block_type in ["mha", "hcl", "hcm", "hcs"]:
+                        for layer_idx, block in enumerate(self.model.blocks):
+                            if block_type in str(block.__class__).lower():
+                                device = self.model.block_idx_to_device[layer_idx]
+                                with torch.device(device):
+                                    inference_params_dict_out[block_type].seqlen_offset += 1
 
-            # do forward pass with no gradient
+            # Forward pass moves tensors through pipeline automatically
             with torch.no_grad():
                 logits, inference_params_dict_out = self.model(
                     x,
                     inference_params_dict=inference_params_dict_out,
                 )
 
+            # Ensure logits are on first device for sampling
+            logits = logits.to("cuda:0")
             last_logits = logits[:, -1]
+            
             if print_generation and verbose and batch_size == 1:
                 print(last_logits.shape, last_logits.min(), last_logits.max(), last_logits)
 
@@ -148,9 +160,9 @@ class Generator:
             generation[:, i] = new_idx
 
             if post_prefill:
-                x = new_idx[:, None]
+                x = new_idx[:, None].to("cuda:0")  # Ensure next input starts on first device
             else:
-                x = torch.cat([x, new_idx[:, None]], dim=-1)
+                x = torch.cat([x, new_idx[:, None]], dim=-1).to("cuda:0")
 
         if verbose:
             kwargs = {}
@@ -165,7 +177,12 @@ class Generator:
 
             print_rank_0(f"\nInput: {input_string}, Output: {y}")
 
-            mem_end = torch.cuda.memory_allocated(device=x.device) / 1e9
-            print_rank_0(f"Memory after generation: {mem_end} GB")
+            # Report memory usage across all devices
+            device_mems = [torch.cuda.memory_allocated(f"cuda:{i}") / 1e9 
+                        for i in range(torch.cuda.device_count())]
+            total_mem = sum(device_mems)
+            print_rank_0(f"Total memory after generation: {total_mem:.2f} GB")
+            for i, mem in enumerate(device_mems):
+                print_rank_0(f"Memory on cuda:{i}: {mem:.2f} GB")
 
         return generation[:, : i + 1], scores[:, : i + 1]
