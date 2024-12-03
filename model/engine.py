@@ -160,7 +160,6 @@ class HyenaInferenceEngine:
                 x2, x1, v = u.split([hidden_size, hidden_size, hidden_size], dim=1)
             if self.hyena_flip_x1x2:
                 x1, x2 = x2, x1
-
             u = x1 * v
 
             if self.print_activations:  
@@ -314,10 +313,6 @@ class HyenaInferenceEngine:
         
         if self.hyena_flip_x1x2:
             x1, x2 = x2, x1
-        
-        # x1 = rearrange(x1, "b l (g dg) -> b l g dg", g=num_attention_heads)
-        # x2 = rearrange(x2, "b l (g dg) -> b l g dg", g=num_attention_heads)
-        # v = rearrange(v, "b l (g dg) -> b l g dg", g=num_attention_heads)
 
         x1v = x1 * v
 
