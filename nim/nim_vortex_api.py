@@ -23,8 +23,14 @@ from functools import lru_cache
 def get_model(*,
     config_path,
     dry_run,
-    checkpoint_path
+    checkpoint_path,
 ):
+    # Make sure we only have one model in memory at a time. (lru_cache creates
+    # new netry before deleting old, which will double peak GPU mem usage.)
+    get_model.cache_clear()
+    import gc
+    gc.collect()
+
     from vortex.model.model import StripedHyena
     from vortex.model.tokenizer import HFAutoTokenizer, CharLevelTokenizer
     from vortex.model.utils import dotdict
@@ -126,7 +132,8 @@ def run_embeddings(
             input_tokens=x.cpu().numpy(),
             embeddings=t.cpu().float().numpy(),
         )
-        return buffer.getvalue()
+        from base64 import encodebytes
+        return encodebytes(buffer.getvalue())
 
 def test_vortex_embeddings():
     out = str(run_embeddings("ATCG"))
