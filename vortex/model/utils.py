@@ -11,16 +11,15 @@ def grab_first_if_tuple(x):
 
 def interleave(z_pre):
     if len(z_pre.shape) == 3: # non-cached
-        z_pre = z_pre.permute(0, 2, 1)
-        x1 = rearrange(z_pre[...,0::3], "b l gdg -> b l gdg")
-        x2 = rearrange(z_pre[...,1::3], "b l gdg -> b l gdg")
-        v  = rearrange(z_pre[...,2::3], "b l gdg -> b l gdg")
-        z_pre = torch.concat([x1, x2, v], dim=-1)
-        return z_pre.permute(0,2,1)
+        x1 = z_pre[:,0::3,:]
+        x2 = z_pre[:,1::3,:]
+        v  = z_pre[:,2::3,:]
+        z_pre = torch.cat([x1, x2, v], dim=1)
+        return z_pre
     else:
-        x1 = rearrange(z_pre[...,0::3], "b gdg -> b gdg")
-        x2 = rearrange(z_pre[...,1::3], "b gdg -> b gdg")
-        v  = rearrange(z_pre[...,2::3], "b gdg -> b gdg")
+        x1 = z_pre[...,0::3]
+        x2 = z_pre[...,1::3]
+        v  = z_pre[...,2::3]
         z_pre = torch.concat([x1, x2, v], dim=-1)
         return z_pre
 
