@@ -14,13 +14,9 @@ from nim_service_utils import RouteDefinition, AppMetadata, clean as c
 class GenerateInputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    fasta: str = Field(...,
-        title='FASTA-formatted string',
-        description=c('''A string containing sequence data in FASTA format.
-            The FASTA format begins with a description line starting with '>',
-            followed by lines of sequence data. The initial '>' line is
-            optional.
-        '''),
+    sequence: str = Field(...,
+        title='Input DNA Sequence',
+        description=c('''A string containing DNA sequence data.'''),
         min_length=1,
         max_length=8192, # TODO: check
     )
@@ -78,9 +74,9 @@ class GenerateInputs(BaseModel):
 class GenerateOutputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    fasta: str = Field(
+    sequence: str = Field(
         title='DNA sequence',
-        description='Output DNA sequence in FASTA format',
+        description='Output DNA sequence.',
     )
     scores: list[list[float]] | None = Field(None,
         title='Scores',
@@ -122,14 +118,10 @@ class GenerateRoute(RouteDefinition):
 class EmbeddingsInputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    fasta: str = Field(...,
-        title='FASTA-formatted string',
-        description=c('''A string containing sequence data in FASTA format.
-            The FASTA format begins with a description line starting with '>',
-            followed by lines of sequence data. The initial '>' line is
-            optional.
-        '''),
-        min_length=1,    # TODO: check
+    sequence: str = Field(...,
+        title='Input DNA sequence',
+        description=c('''A string containing DNA sequence data.'''),
+        min_length=1,
         max_length=8192, # TODO: check
     )
     layer_index: int | None = Field(1,
