@@ -133,7 +133,7 @@ if __name__ == "__main__":
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     with torch.device(device):
-        m = StripedHyena(config).to(torch.bfloat16)
+        m = StripedHyena(config).to(torch.float32)
 
     if args.checkpoint_path:
         state_dict = torch.load(args.checkpoint_path, map_location=device)
