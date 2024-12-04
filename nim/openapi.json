@@ -117,8 +117,8 @@
                         {
                             "title": "Synchronous requests",
                             "requestEjs": {
-                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/generate}\n\nrequest='{\n \"fasta\": \"ATCG\",\n \"top_k\": 4\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
-                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"fasta\": \"ATCG\",\n        \"top_k\": 4,\n    },\n)\nprint(r, \"Saving to output.fa:\\n\", r.text[:200], \"...\")\nPath(\"output.fa\").write_text(json.loads(r.text)[\"fasta\"])\n"
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/generate}\n\nrequest='{\n \"fasta\": \"ACTGACTGACTGACTG\",\n \"num_tokens\": 8,\n \"top_k\": 1,\n \"enable_sampled_probs\": true\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"fasta\": \"ACTGACTGACTGACTG\",\n        \"num_tokens\": 8,\n        \"top_k\": 1,\n        \"enable_sampled_probs\": True,\n    },\n)\nprint(r, \"Saving to output.fa:\\n\", r.text[:200], \"...\")\nPath(\"output.fa\").write_text(json.loads(r.text)[\"fasta\"])\n"
                             }
                         }
                     ]
@@ -297,7 +297,7 @@
                     "fasta": {
                         "type": "string",
                         "maxLength": 8192,
-                        "minLength": 0,
+                        "minLength": 1,
                         "title": "FASTA-formatted string",
                         "description": "A string containing sequence data in FASTA format. The FASTA format begins with a description line starting with '>', followed by lines of sequence data. The initial '>' line is optional."
                     },
@@ -334,14 +334,14 @@
                             {
                                 "type": "integer",
                                 "maximum": 20.0,
-                                "minimum": 1.0
+                                "minimum": 0.0
                             },
                             {
                                 "type": "null"
                             }
                         ],
                         "title": "Top K",
-                        "description": "An integer that specifies the number of highest probability tokens to consider. When set to 1, it performs greedy decoding by selecting the token with the highest probability. Higher values allow for more diverse sampling.",
+                        "description": "An integer that specifies the number of highest probability tokens to consider. When set to 1, it performs greedy decoding by selecting the token with the highest probability. Higher values allow for more diverse sampling. If set to 0, all tokens are considered.",
                         "default": 4
                     },
                     "top_p": {
@@ -361,8 +361,14 @@
                     },
                     "enable_scores": {
                         "type": "boolean",
-                        "title": "Enable Scores Reporting",
-                        "description": "A boolean that if set, enables scores reporting in the output response.",
+                        "title": "Enable Raw Scores Reporting",
+                        "description": "A boolean that if set, enables raw scores reporting in the output response.",
+                        "default": false
+                    },
+                    "enable_sampled_probs": {
+                        "type": "boolean",
+                        "title": "Enable Sampled Token Probabilities Reporting",
+                        "description": "A boolean flag that, when set to True, enables the reporting of sampled token probabilities. When enabled, this feature generates a list of probability values (ranging from 0 to 1) corresponding to each token in the output sequence. These probabilities represent the model's confidence in selecting each token during the generation process. The resulting list has the same length as the output sequence, providing insight into the model's decision-making at each step of text generation.",
                         "default": false
                     }
                 },
@@ -396,7 +402,22 @@
                             }
                         ],
                         "title": "Scores",
-                        "description": "Output Scores in [num_tokens,512] shape (if requested via enable_scores flag.)"
+                        "description": "Output Raw Scores in [num_tokens,512] shape (if requested via enable_scores flag.)"
+                    },
+                    "sampled_probs": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "number"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Sampled Token Probabilities",
+                        "description": "A list of probabilities corresponding to each token in the generated output sequence. Each value ranges from 0 to 1, representing the model's confidence in selecting that specific token during the generation process. The list length matches the output sequence length. To use this feature, set `enable_sampled_probs` to True. This information provides insight into the model's decision-making at each step of text generation."
                     },
                     "elapsed_ms": {
                         "type": "integer",

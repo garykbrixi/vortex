@@ -17,6 +17,7 @@ This file is what NIM uses to call into Vortex.
 import torch
 import yaml
 
+from dataclasses import dataclass
 from functools import lru_cache
 
 @lru_cache(maxsize=1)
@@ -62,6 +63,16 @@ def get_model(*,
     print(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
     return m, tokenizer, device
 
+def to_sampled_probs(sequence, scores) -> list[float]:
+    probs = torch.softmax(scores, dim=-1)
+    return [probs[pos][ord(c)].item() for pos, c in enumerate(sequence)]
+
+@dataclass(kw_only=True)
+class GenerationOutput:
+    sequence: str
+    scores: list[float]
+    sampled_probs: list[float]
+
 def run_generation(
     input_string,
     *,
@@ -73,7 +84,7 @@ def run_generation(
     dry_run=True,
     checkpoint_path=None,
     cached_generation=False, # TODO: likely not tested
-):
+) -> GenerationOutput:
     from vortex.model.generation import Generator
 
     m, tokenizer, device = get_model(
@@ -95,7 +106,12 @@ def run_generation(
             print_generation=True,
             max_seqlen=8192,
         )
-        return tokenizer.detokenize_batch(tokens)[0], scores[0].tolist()
+        sequence = tokenizer.detokenize_batch(tokens)[0]
+        return GenerationOutput(
+            sequence=sequence,
+            scores=scores[0].tolist(),
+            sampled_probs=to_sampled_probs(sequence, scores[0]),
+        )
 
 def test_vortex_generation():
     out = str(run_generation("ATCG"))

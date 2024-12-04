@@ -21,7 +21,7 @@ class GenerateInputs(BaseModel):
             followed by lines of sequence data. The initial '>' line is
             optional.
         '''),
-        min_length=0,    # TODO: check
+        min_length=1,
         max_length=8192, # TODO: check
     )
     num_tokens: int | None = Field(4, ge=1, le=8192,
@@ -38,12 +38,13 @@ class GenerateInputs(BaseModel):
             uniform (more random).
         '''),
     )
-    top_k: int | None = Field(4, ge=1, le=20,
+    top_k: int | None = Field(4, ge=0, le=20,
         title='Top K',
         description=c('''An integer that specifies the number of highest
             probability tokens to consider. When set to 1, it performs greedy
             decoding by selecting the token with the highest probability.
-            Higher values allow for more diverse sampling.
+            Higher values allow for more diverse sampling. If set to 0, all
+            tokens are considered.
         '''),
     )
     top_p: float | None = Field(1.0, ge=0.0, le=1.0,
@@ -55,9 +56,21 @@ class GenerateInputs(BaseModel):
         '''),
     )
     enable_scores: bool = Field(False,
-        title='Enable Scores Reporting',
-        description=c('''A boolean that if set, enables scores reporting in
+        title='Enable Raw Scores Reporting',
+        description=c('''A boolean that if set, enables raw scores reporting in
             the output response.
+        '''),
+    )
+    enable_sampled_probs: bool = Field(False,
+        title='Enable Sampled Token Probabilities Reporting',
+        description=c('''A boolean flag that, when set to True, enables the
+            reporting of sampled token probabilities. When enabled, this
+            feature generates a list of probability values (ranging
+            from 0 to 1) corresponding to each token in the output sequence.
+            These probabilities represent the model's confidence in selecting
+            each token during the generation process. The resulting list has
+            the same length as the output sequence, providing insight into the
+            model's decision-making at each step of text generation.
         '''),
     )
 
@@ -71,8 +84,19 @@ class GenerateOutputs(BaseModel):
     )
     scores: list[list[float]] | None = Field(None,
         title='Scores',
-        description=c('''Output Scores in [num_tokens,512] shape
+        description=c('''Output Raw Scores in [num_tokens,512] shape
             (if requested via enable_scores flag.)
+        '''),
+    )
+    sampled_probs: list[float] | None = Field(None,
+        title='Sampled Token Probabilities',
+        description=c('''A list of probabilities corresponding to each token
+            in the generated output sequence. Each value ranges from 0 to 1,
+            representing the model's confidence in selecting that specific token
+            during the generation process. The list length matches the output
+            sequence length. To use this feature, set `enable_sampled_probs` to
+            True. This information provides insight into the model's
+            decision-making at each step of text generation.
         '''),
     )
     elapsed_ms: int = Field(
