@@ -359,10 +359,10 @@
                         "description": "A float between 0 and 1 that enables nucleus sampling. It filters the smallest set of tokens whose cumulative probability exceeds the top_p threshold. Setting this to 0.0 disables top-p sampling.",
                         "default": 1.0
                     },
-                    "enable_scores": {
+                    "enable_logits": {
                         "type": "boolean",
-                        "title": "Enable Raw Scores Reporting",
-                        "description": "A boolean that if set, enables raw scores reporting in the output response.",
+                        "title": "Enable Logits Reporting",
+                        "description": "A boolean that if set, enables logits reporting in the output response.",
                         "default": false
                     },
                     "enable_sampled_probs": {
@@ -386,7 +386,7 @@
                         "title": "DNA sequence",
                         "description": "Output DNA sequence."
                     },
-                    "scores": {
+                    "logits": {
                         "anyOf": [
                             {
                                 "items": {
@@ -401,8 +401,8 @@
                                 "type": "null"
                             }
                         ],
-                        "title": "Scores",
-                        "description": "Output Raw Scores in [num_tokens,512] shape (if requested via enable_scores flag.)"
+                        "title": "Logits",
+                        "description": "Output Logits in [num_tokens,512] shape (if requested via enable_logits flag.)"
                     },
                     "sampled_probs": {
                         "anyOf": [
