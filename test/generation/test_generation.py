@@ -107,6 +107,9 @@ def calculate_sequence_identity(seq1: str, seq2: str, amino_acids=False) -> Opti
 
 
 if __name__ == "__main__":
+    '''
+    python ./test/generation/test_generation.py --config_path <config_path> --checkpoint_path <path.pt>
+    '''
     parser = argparse.ArgumentParser(description="Run StripedHyena Model")
     parser.add_argument("--config_path", required=True, help="Path to configuration file")
     parser.add_argument("--checkpoint_path", default=None, help="Path to checkpoint file")
