@@ -51,9 +51,9 @@ class GenerateInputs(BaseModel):
             sampling.
         '''),
     )
-    enable_scores: bool = Field(False,
-        title='Enable Raw Scores Reporting',
-        description=c('''A boolean that if set, enables raw scores reporting in
+    enable_logits: bool = Field(False,
+        title='Enable Logits Reporting',
+        description=c('''A boolean that if set, enables logits reporting in
             the output response.
         '''),
     )
@@ -78,10 +78,10 @@ class GenerateOutputs(BaseModel):
         title='DNA sequence',
         description='Output DNA sequence.',
     )
-    scores: list[list[float]] | None = Field(None,
-        title='Scores',
-        description=c('''Output Raw Scores in [num_tokens,512] shape
-            (if requested via enable_scores flag.)
+    logits: list[list[float]] | None = Field(None,
+        title='Logits',
+        description=c('''Output Logits in [num_tokens,512] shape
+            (if requested via enable_logits flag.)
         '''),
     )
     sampled_probs: list[float] | None = Field(None,

@@ -63,14 +63,14 @@ def get_model(*,
     print(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
     return m, tokenizer, device
 
-def to_sampled_probs(sequence, scores) -> list[float]:
-    probs = torch.softmax(scores, dim=-1)
+def to_sampled_probs(sequence, logits) -> list[float]:
+    probs = torch.softmax(logits, dim=-1)
     return [probs[pos][ord(c)].item() for pos, c in enumerate(sequence)]
 
 @dataclass(kw_only=True)
 class GenerationOutput:
     sequence: str
-    scores: list[float]
+    logits: list[float]
     sampled_probs: list[float]
 
 def run_generation(
@@ -97,7 +97,7 @@ def run_generation(
 
     with torch.inference_mode():
         g = Generator(m, tokenizer, top_k=top_k, top_p=top_p, temperature=temperature)
-        tokens, scores = g.generate(
+        tokens, logits = g.generate(
             num_tokens=num_tokens,
             cached_generation=cached_generation,
             input_string=input_string,
@@ -109,8 +109,8 @@ def run_generation(
         sequence = tokenizer.detokenize_batch(tokens)[0]
         return GenerationOutput(
             sequence=sequence,
-            scores=scores[0].tolist(),
-            sampled_probs=to_sampled_probs(sequence, scores[0]),
+            logits=logits[0].tolist(),
+            sampled_probs=to_sampled_probs(sequence, logits[0]),
         )
 
 def test_vortex_generation():
