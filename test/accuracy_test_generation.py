@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
     g = Generator(m, tokenizer, top_k=args.top_k, top_p=args.top_p, temperature=args.temperature)
 
-    sequences = read_prompts('./test/generation/data/prompts.csv')
+    sequences = read_prompts('./test/data/prompts.csv')
 
     scores = generate_and_score(sequences, g, tokenizer, args, generations_per_prompt=args.generations_per_prompt)
     
