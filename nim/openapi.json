@@ -117,8 +117,8 @@
                         {
                             "title": "Synchronous requests",
                             "requestEjs": {
-                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/generate}\n\nrequest='{\n \"sequence\": \"ACTGACTGACTGACTG\",\n \"num_tokens\": 8,\n \"top_k\": 1,\n \"enable_sampled_probs\": true\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
-                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ACTGACTGACTGACTG\",\n        \"num_tokens\": 8,\n        \"top_k\": 1,\n        \"enable_sampled_probs\": True,\n    },\n)\nprint(r, \"Saving to output.fa:\\n\", r.text[:200], \"...\")\nPath(\"output.fa\").write_text(json.loads(r.text)[\"sequence\"])\n"
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2-7b/generate}\n\nrequest='{\n \"sequence\": \"ACTGACTGACTGACTG\",\n \"num_tokens\": 8,\n \"top_k\": 1,\n \"enable_sampled_probs\": true\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc-7b/evo2/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ACTGACTGACTGACTG\",\n        \"num_tokens\": 8,\n        \"top_k\": 1,\n        \"enable_sampled_probs\": True,\n    },\n)\nprint(r, \"Saving to output.fa:\\n\", r.text[:200], \"...\")\nPath(\"output.fa\").write_text(json.loads(r.text)[\"sequence\"])\n"
                             }
                         }
                     ]
@@ -314,12 +314,14 @@
                         ],
                         "title": "Number of tokens to generate",
                         "description": "An integer that controls number of tokens that will be generated.",
-                        "default": 4
+                        "default": 100
                     },
                     "temperature": {
                         "anyOf": [
                             {
-                                "type": "number"
+                                "type": "number",
+                                "maximum": 1.3,
+                                "exclusiveMinimum": 0.0
                             },
                             {
                                 "type": "null"
@@ -327,13 +329,13 @@
                         ],
                         "title": "Temperature",
                         "description": "A float that controls the randomness of the sampling process. Values lower than 1.0 make the distribution sharper (more deterministic), while values higher than 1.0 make it more uniform (more random).",
-                        "default": 1.0
+                        "default": 0.7
                     },
                     "top_k": {
                         "anyOf": [
                             {
                                 "type": "integer",
-                                "maximum": 20.0,
+                                "maximum": 6.0,
                                 "minimum": 0.0
                             },
                             {
@@ -342,7 +344,7 @@
                         ],
                         "title": "Top K",
                         "description": "An integer that specifies the number of highest probability tokens to consider. When set to 1, it performs greedy decoding by selecting the token with the highest probability. Higher values allow for more diverse sampling. If set to 0, all tokens are considered.",
-                        "default": 4
+                        "default": 3
                     },
                     "top_p": {
                         "anyOf": [
