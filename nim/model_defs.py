@@ -20,13 +20,13 @@ class GenerateInputs(BaseModel):
         min_length=1,
         max_length=8192, # TODO: check
     )
-    num_tokens: int | None = Field(4, ge=1, le=8192,
+    num_tokens: int | None = Field(100, ge=1, le=8192,
         title='Number of tokens to generate',
         description=c('''An integer that controls number of tokens that will
             be generated.
         '''),
     )
-    temperature: float | None = Field(1.0,
+    temperature: float | None = Field(0.7, gt=0.0, le=1.3,
         title='Temperature',
         description=c('''A float that controls the randomness of the sampling
             process. Values lower than 1.0 make the distribution sharper
@@ -34,7 +34,7 @@ class GenerateInputs(BaseModel):
             uniform (more random).
         '''),
     )
-    top_k: int | None = Field(4, ge=0, le=20,
+    top_k: int | None = Field(3, ge=0, le=6,
         title='Top K',
         description=c('''An integer that specifies the number of highest
             probability tokens to consider. When set to 1, it performs greedy
