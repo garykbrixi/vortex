@@ -8,3 +8,8 @@
 *.so
 *.dll
 *.dylib
+*.ipynb_checkpoints
+*.egg-info
+*.vscode
+*.out
+*.log
