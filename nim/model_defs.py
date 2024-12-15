@@ -127,7 +127,7 @@ class ForwardInputs(BaseModel):
     output_layers: list[constr(min_length=1)] = Field(...,
         title='Output capture layers.',
         description=c('''List of layer names from which to capture and save
-            output tensors.'''
+            output tensors. For example, `["embedding_layer"]`.'''
         ),
         min_items=1,
         max_items=10,

@@ -258,7 +258,7 @@
                         "maxItems": 10,
                         "minItems": 1,
                         "title": "Output capture layers.",
-                        "description": "List of layer names from which to capture and save output tensors."
+                        "description": "List of layer names from which to capture and save output tensors. For example, `[\"embedding_layer\"]`."
                     }
                 },
                 "additionalProperties": false,
