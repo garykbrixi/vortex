@@ -10,7 +10,7 @@
 This file is what NIM uses to call into Vortex.
 
 - biology/arc/evo2/generate endpoint calls run_generation()
-- biology/arc/evo2/embeddings endpoint calls run_embeddings()
+- biology/arc/evo2/forward endpoint calls run_forward()
 
 """
 
@@ -117,10 +117,17 @@ def test_vortex_generation():
     out = str(run_generation("ATCG"))
     print("Test generation: ", out[:100], "...", out[-100:])
 
-def run_embeddings(
+class LayerHook:
+    def __init__(self, *, layer_name, store):
+        self.layer_name = layer_name
+        self.store = store
+    def hook_fn(self, module, input, output):
+        self.store[self.layer_name + ".output"] = output.cpu().tolist()
+
+def run_forward(
     input_string,
     *,
-    layer_index=1,
+    layers=["embedding_layer", "unembed", "blocks.0.mlp.l1"],
     config_path="shc-evo2-7b-8k-2T-v2.yml",
     dry_run=True,
     checkpoint_path=None,
@@ -131,33 +138,47 @@ def run_embeddings(
         checkpoint_path=checkpoint_path,
     )
 
-    print(f"Embeddings Prompt: {input_string}")
+    print(f"Forward Prompt: {input_string}")
 
-    with torch.no_grad():
-        from torch import nn
-        m = nn.Sequential(*list(m.children())[:layer_index]) # TODO: catch and sanitize index error
-        x = tokenizer.tokenize(input_string)
-        x = torch.LongTensor(x).unsqueeze(0).to(device)
-        t = m(x)
+    store = {}
+    hooks = []
+
+    try:
+        for l in layers:
+            hooks.append(
+                m.get_submodule(l).register_forward_hook(
+                    LayerHook(layer_name=l, store=store).hook_fn
+                )
+            )
+
+        with torch.no_grad():
+            from torch import nn
+            x = tokenizer.tokenize(input_string)
+            x = torch.LongTensor(x).unsqueeze(0).to(device)
+            m(x)
+    finally:
+        for h in hooks:
+            h.remove()
 
     from io import BytesIO
     with BytesIO() as buffer:
         from numpy import savez_compressed
-        savez_compressed(
-            buffer,
-            input_tokens=x.cpu().numpy(),
-            embeddings=t.cpu().float().numpy(),
-        )
+        savez_compressed(buffer, **store)
         from base64 import encodebytes
         return encodebytes(buffer.getvalue())
 
-def test_vortex_embeddings():
-    out = str(run_embeddings("ATCG"))
-    print("Test embeddings: ", out[:100], "...", out[-100:])
+def test_vortex_forward():
+    from base64 import decodebytes
+    from io import BytesIO
+    from numpy import load
+
+    octs = run_forward("ATCG")
+    deserialized = dict(load(BytesIO(decodebytes(octs))))
+    print("Test forward: ", octs[:100], "...", octs[-100:], deserialized)
 
 def test_all():
     test_vortex_generation()
-    test_vortex_embeddings()
+    test_vortex_forward()
 
 if __name__ == "__main__":
     from pathlib import Path
