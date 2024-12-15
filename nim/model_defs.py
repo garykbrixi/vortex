@@ -8,7 +8,7 @@
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
 
-from pydantic import BaseModel, Field, ConfigDict, Base64Bytes
+from pydantic import BaseModel, Field, ConfigDict, Base64Bytes, constr
 from nim_service_utils import RouteDefinition, AppMetadata, clean as c
 
 class GenerateInputs(BaseModel):
@@ -115,7 +115,7 @@ class GenerateRoute(RouteDefinition):
     }
 
 
-class EmbeddingsInputs(BaseModel):
+class ForwardInputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     sequence: str = Field(...,
@@ -124,22 +124,22 @@ class EmbeddingsInputs(BaseModel):
         min_length=1,
         max_length=8192, # TODO: check
     )
-    layer_index: int | None = Field(1,
-        title='Layer Index',
-        description=c('''The index of the layer from which to extract
-            embeddings. If set to 1, embeddings will be extracted from the
-            first layer. If None, embeddings will be extracted from the
-            last layer.'''
+    output_layers: list[constr(min_length=1)] = Field(...,
+        title='Output capture layers.',
+        description=c('''List of layer names from which to capture and save
+            output tensors.'''
         ),
+        min_items=1,
+        max_items=10,
     )
 
-class EmbeddingsOutputs(BaseModel):
+class ForwardOutputs(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
-    embeddings: Base64Bytes = Field(
-        title='Embeddings',
-        description=c('''Output Embeddings in NumPy Zipped (NPZ) format, base64
-            encoded.'''
+    data: Base64Bytes = Field(
+        title='outputs',
+        description=c('''Tensors of requested layers in NumPy Zipped (NPZ)
+            format, base64 encoded.'''
         ),
     )
     elapsed_ms: int = Field(
@@ -148,17 +148,17 @@ class EmbeddingsOutputs(BaseModel):
     )
 
 
-class EmbeddingsRoute(RouteDefinition):
-    API_PATH: str = '/biology/arc/evo2/embeddings'
-    API_SUMMARY: str = 'Generate embeddings for DNA sequence'
+class ForwardRoute(RouteDefinition):
+    API_PATH: str = '/biology/arc/evo2/forward'
+    API_SUMMARY: str = 'Run model forward pass and save layers outputs'
     API_DESCRIPTION: str = API_SUMMARY
     MODEL_NAME: str = 'evo2'
-    ModelInputs = EmbeddingsInputs
-    ModelOutputs = EmbeddingsOutputs
+    ModelInputs = ForwardInputs
+    ModelOutputs = ForwardOutputs
     X_NVAI_META: dict = {
         'name': API_SUMMARY,
-        'returns': 'Embeddings for the input DNA sequence at a specific layer.',
-        'path': 'embeddings',
+        'returns': 'Tensors of requested layers.',
+        'path': 'forward',
     }
 
 
@@ -169,4 +169,4 @@ class Metadata(AppMetadata):
     MODEL_LICENSE_URL: str = 'https://github.com/Zymrael/vortex/blob/b8bf0e53711a6dbf57c9351fe9fdc461e1399028/LICENSE' # TODO: need public URL
 
 
-route_definitions = [GenerateRoute, EmbeddingsRoute]
+route_definitions = [GenerateRoute, ForwardRoute]

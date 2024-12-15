@@ -20,15 +20,15 @@
         }
     ],
     "paths": {
-        "/biology/arc/evo2/embeddings": {
+        "/biology/arc/evo2/forward": {
             "post": {
-                "summary": "Generate embeddings for DNA sequence",
-                "operationId": "embeddings_biology_arc_evo2_embeddings_post",
+                "summary": "Run model forward pass and save layers outputs",
+                "operationId": "forward_biology_arc_evo2_forward_post",
                 "requestBody": {
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/EmbeddingsInputs"
+                                "$ref": "#/components/schemas/ForwardInputs"
                             }
                         }
                     },
@@ -40,7 +40,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/EmbeddingsOutputs"
+                                    "$ref": "#/components/schemas/ForwardOutputs"
                                 }
                             }
                         }
@@ -57,20 +57,20 @@
                     }
                 },
                 "x-nvai-meta": {
-                    "name": "Generate embeddings for DNA sequence",
-                    "returns": "Embeddings for the input DNA sequence at a specific layer.",
-                    "path": "embeddings",
+                    "name": "Run model forward pass and save layers outputs",
+                    "returns": "Tensors of requested layers.",
+                    "path": "forward",
                     "templates": [
                         {
                             "title": "Synchronous requests",
                             "requestEjs": {
-                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings}\n\nrequest='{\n \"sequence\": \"ATCG\",\n \"layer_index\": 1\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
-                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\nfrom base64 import decodebytes\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/embeddings\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ATCG\",\n        \"layer_index\": 1,\n    },\n)\nprint(r, \"Saving to embeddings.npz:\\n\", r.text[:200], \"...\")\nPath(\"embeddings.npz\").write_bytes(decodebytes(json.loads(r.text)[\"embeddings\"].encode(\"ascii\")))\n"
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/forward}\n\nrequest='{\n \"sequence\": \"ATCG\",\n \"output_layers\": [\"embedding_layer\"]\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\nfrom base64 import decodebytes\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/forward\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ATCG\",\n        \"output_layers\": [\"embedding_layer\"],\n    },\n)\nprint(r, \"Saving to data.npz:\\n\", r.text[:200], \"...\")\nPath(\"data.npz\").write_bytes(decodebytes(json.loads(r.text)[\"data\"].encode(\"ascii\")))\n"
                             }
                         }
                     ]
                 },
-                "description": "Generate embeddings for DNA sequence"
+                "description": "Run model forward pass and save layers outputs"
             }
         },
         "/biology/arc/evo2/generate": {
@@ -240,7 +240,7 @@
     },
     "components": {
         "schemas": {
-            "EmbeddingsInputs": {
+            "ForwardInputs": {
                 "properties": {
                     "sequence": {
                         "type": "string",
@@ -249,34 +249,33 @@
                         "title": "Input DNA sequence",
                         "description": "A string containing DNA sequence data."
                     },
-                    "layer_index": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "title": "Layer Index",
-                        "description": "The index of the layer from which to extract embeddings. If set to 1, embeddings will be extracted from the first layer. If None, embeddings will be extracted from the last layer.",
-                        "default": 1
+                    "output_layers": {
+                        "items": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "type": "array",
+                        "maxItems": 10,
+                        "minItems": 1,
+                        "title": "Output capture layers.",
+                        "description": "List of layer names from which to capture and save output tensors."
                     }
                 },
                 "additionalProperties": false,
                 "type": "object",
                 "required": [
-                    "sequence"
+                    "sequence",
+                    "output_layers"
                 ],
-                "title": "EmbeddingsInputs"
+                "title": "ForwardInputs"
             },
-            "EmbeddingsOutputs": {
+            "ForwardOutputs": {
                 "properties": {
-                    "embeddings": {
+                    "data": {
                         "type": "string",
                         "format": "base64",
-                        "title": "Embeddings",
-                        "description": "Output Embeddings in NumPy Zipped (NPZ) format, base64 encoded."
+                        "title": "outputs",
+                        "description": "Tensors of requested layers in NumPy Zipped (NPZ) format, base64 encoded."
                     },
                     "elapsed_ms": {
                         "type": "integer",
@@ -287,10 +286,10 @@
                 "additionalProperties": false,
                 "type": "object",
                 "required": [
-                    "embeddings",
+                    "data",
                     "elapsed_ms"
                 ],
-                "title": "EmbeddingsOutputs"
+                "title": "ForwardOutputs"
             },
             "GenerateInputs": {
                 "properties": {
