@@ -10,7 +10,7 @@
 This file is what NIM uses to call into Vortex.
 
 - biology/arc/evo2/generate endpoint calls run_generation()
-- biology/arc/evo2/embeddings endpoint calls run_embeddings()
+- biology/arc/evo2/forward endpoint calls run_forward()
 
 """
 
@@ -124,7 +124,7 @@ class LayerHook:
     def hook_fn(self, module, input, output):
         self.store[self.layer_name + ".output"] = output.cpu().tolist()
 
-def run_embeddings(
+def run_forward(
     input_string,
     *,
     layers=["embedding_layer", "unembed", "blocks.0.mlp.l1"],
@@ -138,7 +138,7 @@ def run_embeddings(
         checkpoint_path=checkpoint_path,
     )
 
-    print(f"Embeddings Prompt: {input_string}")
+    print(f"Forward Prompt: {input_string}")
 
     store = {}
     hooks = []
@@ -167,18 +167,18 @@ def run_embeddings(
         from base64 import encodebytes
         return encodebytes(buffer.getvalue())
 
-def test_vortex_embeddings():
+def test_vortex_forward():
     from base64 import decodebytes
     from io import BytesIO
     from numpy import load
 
-    octs = run_embeddings("ATCG")
+    octs = run_forward("ATCG")
     deserialized = dict(load(BytesIO(decodebytes(octs))))
-    print("Test embeddings: ", octs[:100], "...", octs[-100:], deserialized)
+    print("Test forward: ", octs[:100], "...", octs[-100:], deserialized)
 
 def test_all():
     test_vortex_generation()
-    test_vortex_embeddings()
+    test_vortex_forward()
 
 if __name__ == "__main__":
     from pathlib import Path
