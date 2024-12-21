@@ -4,6 +4,34 @@ Utilities for efficient inference of deep signal processing models (Hyena, Hyena
 
 ## Quickstart
 
+### In Docker environment
+
+To run 40b generation sample, simply execute:
+
+```bash
+./run
+```
+
+To run 7b generation sample, simply execute:
+
+```bash
+sz=7 ./run
+```
+
+To run tests:
+
+```bash
+./run ./run_tests
+```
+
+To interactively execute commands in docker environment:
+
+```bash
+./run bash
+```
+
+### Without Docker
+
 Set up the environment, then run:
 
 ```bash
