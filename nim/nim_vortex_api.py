@@ -19,6 +19,7 @@ import yaml
 
 from dataclasses import dataclass
 from functools import lru_cache
+from os import getenv
 
 @lru_cache(maxsize=1)
 def get_model(*,
@@ -84,6 +85,7 @@ def run_generation(
     dry_run=True,
     checkpoint_path=None,
     cached_generation=False, # TODO: likely not tested
+    timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 600)),
 ) -> GenerationOutput:
     from vortex.model.generation import Generator
 
@@ -95,6 +97,12 @@ def run_generation(
 
     print(f"Generation Prompt: {input_string}")
 
+    from time import monotonic
+    deadline = monotonic() + timeout_s
+    def token_callback(i):
+        if monotonic() > deadline:
+            raise TimeoutError(f"Timed out on {i}th token out of {num_tokens} requested. Allowed to run for {timeout_s} seconds.")
+
     with torch.inference_mode():
         g = Generator(m, tokenizer, top_k=top_k, top_p=top_p, temperature=temperature)
         tokens, logits = g.generate(
@@ -105,6 +113,7 @@ def run_generation(
             verbose=True,
             print_generation=True,
             max_seqlen=8192,
+            token_callback=token_callback,
         )
         sequence = tokenizer.detokenize_batch(tokens)[0]
         return GenerationOutput(
