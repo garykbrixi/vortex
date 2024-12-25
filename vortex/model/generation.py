@@ -13,15 +13,34 @@ from vortex.model.tokenizer import CharLevelTokenizer
 from vortex.model.utils import print_rank_0
 
 
-class Generator:
-    def __init__(self, model, tokenizer, top_k=50, top_p=0.7, temperature=1):
+class BaseGenerator:
+    def __init__(self, model, tokenizer, top_k=50, top_p=0.7, temperature=1, untils=["\n\n"]):
         self.model = model
         self.tokenizer = tokenizer
         self.top_k = top_k
         self.top_p = top_p
         self.temperature = temperature
-        self.untils = ["\n\n"]
+        self.untils = untils
+    
+    def _format_eos_token_ids(self, device):
+        if isinstance(self.tokenizer.eos, int):
+            eos_token_ids = torch.LongTensor([self.tokenizer.eos]).to(device)
+        else:
+            eos_token_ids = self.tokenizer.tokenize(self.tokenizer.eos).to(device)
+        return eos_token_ids
+    
+    def _input_string_to_ids(self, input_string, device):
+        input = self.tokenizer.tokenize(input_string)
+        if isinstance(input, list):
+            input = torch.LongTensor(input).unsqueeze(0).to(device)
+        # is a tensor
+        else:
+            input = input.unsqueeze(0).to(device)
+        return input
 
+    def _generate_tokens(self, *args, **kwargs):
+        raise NotImplementedError
+    
     def generate(
         self,
         device,
@@ -36,22 +55,13 @@ class Generator:
         max_seqlen=None,
         token_callback=lambda i: None,
     ):
-        if isinstance(self.tokenizer.eos, int):
-            eos_token_ids = torch.LongTensor([self.tokenizer.eos]).to(device)
-        else:
-            # is a tensor
-            eos_token_ids = self.tokenizer.tokenize(self.tokenizer.eos).to(device)
+        eos_token_ids = self._format_eos_token_ids(device)
 
         if input_ids is None:
-            input = self.tokenizer.tokenize(input_string)
-            if isinstance(input, list):
-                input = torch.LongTensor(input).unsqueeze(0).to(device)
-            # is a tensor
-            else:
-                input = input.unsqueeze(0).to(device)
-
+            input = self._input_string_to_ids(input_string, device)
         else:
             input = input_ids
+
         x = input
 
         print(input_string, input)
@@ -88,7 +98,9 @@ class Generator:
             inference_params_dict_out["hcs"].max_batch_size = batch_size
         else:
             inference_params_dict_out = None
-
+        
+        # generate tokens, override in subclasses
+        generation, scores = self._generate_tokens(x, scores, generation, num_tokens, cached_generation, inference_params_dict_out, seqlen_offset, stop_at_eos, print_generation)
         if verbose:
             mem_after_tok = torch.cuda.memory_allocated(device=x.device) / 1e9
             print_rank_0(f"Memory after tokenization: {mem_after_tok} GB")
@@ -97,7 +109,26 @@ class Generator:
                 print_rank_0("Prompt: " + input_string)
             else:
                 print_rank_0(f"Prompt ids: {input_ids} {input_ids.shape}")
+        
+        return generation, scores
 
+
+class Generator(BaseGenerator):
+    def __init__(self, model, tokenizer, top_k=50, top_p=0.7, temperature=1, untils=["\n\n"]):
+        super().__init__(model, tokenizer, top_k, top_p, temperature, untils)
+
+    def _generate_tokens(
+        self,
+        x,
+        scores,
+        generation,
+        num_tokens,
+        cached_generation,
+        inference_params_dict_out,
+        seqlen_offset,
+        stop_at_eos,
+        print_generation
+    ):
         for i in range(int(num_tokens)):
             post_prefill = cached_generation and i > 0
             # prefill then process only the last token
@@ -154,21 +185,5 @@ class Generator:
                 x = new_idx[:, None]
             else:
                 x = torch.cat([x, new_idx[:, None]], dim=-1)
-
-        if verbose:
-            kwargs = {}
-            if not isinstance(self.tokenizer, CharLevelTokenizer):
-                kwargs["skip_special_tokens"] = skip_special_tokens
-            y = self.tokenizer.detokenize_batch(generation[:, : i + 1], **kwargs)
-
-            for until in self.untils:
-                if until in y:
-                    y = y.split(until)[0]
-                    break
-
-            print_rank_0(f"\nInput: {input_string}, Output: {y}")
-
-            mem_end = torch.cuda.memory_allocated(device=x.device) / 1e9
-            print_rank_0(f"Memory after generation: {mem_end} GB")
 
         return generation[:, : i + 1], scores[:, : i + 1]
