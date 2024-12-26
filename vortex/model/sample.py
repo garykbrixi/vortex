@@ -27,7 +27,7 @@ def modify_logits_for_top_p_filtering(logits, top_p):
 
 
 # https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/utils/generation.py
-def sample(logits, top_k=1, top_p=0.0, temperature=1.0):
+def sample(logits, top_k=1, top_p=0.0, temperature=1.0, return_logits=False):
     """Sample from top-k logits.
     Arguments:
         logits: Tensor of shape (batch_size, vocab_size)
@@ -37,7 +37,8 @@ def sample(logits, top_k=1, top_p=0.0, temperature=1.0):
     logits = torch.where(logits == float("inf"), 0, logits)
 
     if top_k == 1:  # Short-circuit for greedy decoding
-        return logits.argmax(dim=-1)
+        indices = logits.argmax(dim=-1)
+        logits_top = logits
     else:
         if top_p > 0.0:
             assert top_p <= 1.0, "top-p should be in (0, 1]."
@@ -48,7 +49,7 @@ def sample(logits, top_k=1, top_p=0.0, temperature=1.0):
                 logits_top /= temperature
             modify_logits_for_top_p_filtering(logits_top, top_p)
 
-            return indices[
+            indices = indices[
                 torch.arange(indices.shape[0], device=indices.device),
                 torch.multinomial(torch.softmax(logits_top, dim=-1), num_samples=1).squeeze(dim=-1),
             ]
@@ -56,4 +57,9 @@ def sample(logits, top_k=1, top_p=0.0, temperature=1.0):
             # Clone so that when we modify for top_p we don't change the original logits
             logits_top = logits / temperature if temperature != 1.0 else logits.clone()
             modify_logits_for_top_p_filtering(logits_top, top_p)
-            return torch.multinomial(torch.softmax(logits_top, dim=-1), num_samples=1).squeeze(dim=-1)
+            indices = torch.multinomial(torch.softmax(logits_top, dim=-1), num_samples=1).squeeze(dim=-1)
+
+        if return_logits:
+            return indices, logits_top
+        else:
+            return indices
