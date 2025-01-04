@@ -99,6 +99,7 @@ class Generator:
                 print_rank_0(f"Prompt ids: {input_ids} {input_ids.shape}")
 
         for i in range(int(num_tokens)):
+            import pdb; pdb.set_trace()
             post_prefill = cached_generation and i > 0
             # prefill then process only the last token
             if post_prefill:

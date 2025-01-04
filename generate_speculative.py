@@ -6,7 +6,7 @@ import yaml
 
 from vortex.model.speculative import SpeculativeGenerator
 from vortex.model.model import StripedHyena
-from vortex.model.sample import sample
+from vortex.model.sample import sample, modify_logits
 from vortex.model.tokenizer import HFAutoTokenizer, CharLevelTokenizer
 from vortex.model.utils import dotdict, print_rank_0
 
@@ -38,6 +38,9 @@ if __name__ == "__main__":
     torch.manual_seed(1)
     torch.cuda.manual_seed(1)
     args = parser.parse_args()
+
+    if args.cached_generation:
+        raise NotImplementedError("Cached generation is not currentlysupported for speculative generation")
 
     target_config = dotdict(yaml.load(open(args.target_config_path), Loader=yaml.FullLoader))
     draft_config = dotdict(yaml.load(open(args.draft_config_path), Loader=yaml.FullLoader))
@@ -94,4 +97,3 @@ if __name__ == "__main__":
             max_seqlen=args.max_seqlen,
         )
 
-    import IPython;IPython.embed()

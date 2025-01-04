@@ -1,4 +1,5 @@
 import torch
+from typing import Optional
 
 
 # https://github.com/NVIDIA/Megatron-LM/blob/0bb597b42c53355a567aba2a1357cc34b9d99ddd/megatron/text_generation/sampling.py
@@ -26,12 +27,7 @@ def modify_logits_for_top_p_filtering(logits, top_p):
     logits.masked_fill_(indices_to_remove, float("-inf"))
 
 
-# https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/utils/generation.py
-def sample(logits, top_k=1, top_p=0.0, temperature=1.0, return_logits=False):
-    """Sample from top-k logits.
-    Arguments:
-        logits: Tensor of shape (batch_size, vocab_size)
-    """
+def modify_logits(logits, top_k, top_p, temperature): 
     logits = torch.nan_to_num(logits)
     logits = torch.where(logits == float("-inf"), 0, logits)
     logits = torch.where(logits == float("inf"), 0, logits)
@@ -48,18 +44,35 @@ def sample(logits, top_k=1, top_p=0.0, temperature=1.0, return_logits=False):
             if temperature != 1.0:
                 logits_top /= temperature
             modify_logits_for_top_p_filtering(logits_top, top_p)
+        else:
+            # Clone so that when we modify for top_p we don't change the original logits
+            logits_top = logits / temperature if temperature != 1.0 else logits.clone()
+            modify_logits_for_top_p_filtering(logits_top, top_p)
+        return logits_top
 
+
+# https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/utils/generation.py
+def sample(logits, top_k=1, top_p=0.0, temperature=1.0, ignore_logit_modification=False):
+    """Sample from top-k logits.
+    Arguments:
+        logits: Tensor of shape (..., vocab_size)
+    """
+    if top_k == 1:  # Short-circuit for greedy decoding
+        indices = logits.argmax(dim=-1)
+    else:
+        if ignore_logit_modification:
+            # for use in cases where the logit modification is done outside of this function,
+            # e.g. in the speculative generation case
+            logits_top = logits
+        else:
+            logits_top = modify_logits(logits, top_k, top_p, temperature)
+
+        if top_k > 0:
+            _, indices = torch.topk(logits_top, top_k, dim=-1)
             indices = indices[
                 torch.arange(indices.shape[0], device=indices.device),
                 torch.multinomial(torch.softmax(logits_top, dim=-1), num_samples=1).squeeze(dim=-1),
             ]
         else:
-            # Clone so that when we modify for top_p we don't change the original logits
-            logits_top = logits / temperature if temperature != 1.0 else logits.clone()
-            modify_logits_for_top_p_filtering(logits_top, top_p)
             indices = torch.multinomial(torch.softmax(logits_top, dim=-1), num_samples=1).squeeze(dim=-1)
-
-        if return_logits:
-            return indices, logits_top
-        else:
-            return indices
+    return indices

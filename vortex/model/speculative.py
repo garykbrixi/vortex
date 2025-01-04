@@ -2,7 +2,7 @@ import torch
 from torch.nn import Module
 from typing import List, Tuple
 
-from vortex.model.sample import sample, modify_logits_for_top_k_filtering, modify_logits_for_top_p_filtering
+from vortex.model.sample import sample, modify_logits
 from vortex.model.tokenizer import CharLevelTokenizer
 from vortex.model.utils import print_rank_0
 
@@ -45,6 +45,7 @@ class SpeculativeGenerator:
         self.temperature = temperature
         self.untils = untils
         self.gamma = gamma   # number of speculative tokens
+        self.drafts_accepted = 0
 
     def get_logits(self, model, x, cur_i, inference_params_dict, cached_generation, prompt_len):
         post_prefill = cached_generation and cur_i > 0
@@ -89,10 +90,18 @@ class SpeculativeGenerator:
         tot_length = prompt_len + num_tokens
         batch_size = x.shape[0]
 
-        target_generation = torch.empty(
+        generation = torch.empty(
             x.shape[0],
             num_tokens,
             dtype=torch.long,
+            device=x.device,
+        )
+
+        target_logits = torch.empty(
+            x.shape[0],
+            num_tokens,
+            self.tokenizer.vocab_size,
+            dtype=torch.float,
             device=x.device,
         )
 
@@ -103,9 +112,6 @@ class SpeculativeGenerator:
             dtype=torch.float,
             device=x.device,
         )
-
-        draft_generation = target_generation.clone()
-        draft_scores = target_scores.clone()
 
         # set up inference params if doing cached generation
         if cached_generation:
@@ -133,44 +139,56 @@ class SpeculativeGenerator:
         ##########################################################
         
         for i in range(int(num_tokens)):
+            gamma = min(self.gamma, num_tokens - i - 1)
             all_draft_logits = []
-            all_draft_sampled_idxs = []
+            all_draft_sampled_idx = []
 
-            for j in range(self.gamma):
-                draft_logits, draft_inference_params_dict_out = self.get_logits(self.draft_model, x, i, draft_inference_params_dict_out, cached_generation, prompt_len)
-                draft_last_logits = draft_logits[:, -1, :]  # TODO: check shape
-                draft_sampled_idx, draft_sampled_logits = sample(
-                    draft_last_logits,
-                    top_k=self.top_k,
-                    top_p=self.top_p,
-                    temperature=self.temperature,
-                    return_logits=True,
-                )
+            for j in range(gamma):
+                draft_logits, draft_inference_params_dict_out = self.get_logits(self.draft_model, x[:, :i+j], i + j, draft_inference_params_dict_out, cached_generation, prompt_len)
+                draft_last_logits = draft_logits[:, -1]  # (1, L, vocab_size) -> (1, vocab_size)
+                draft_last_logits = modify_logits(draft_last_logits, top_k=self.top_k, top_p=self.top_p, temperature=self.temperature)
                 all_draft_logits.append(draft_last_logits)
-                all_draft_sampled_idxs.append(draft_sampled_idx)
-                # all_draft_sampled_idxs.append(rearrange(draft_sampled_logits, "b -> b 1 1"))
-           
-            # cat or stack? TODO: check if this is correct
-            all_draft_sampled_idxs = torch.stack(all_draft_sampled_idxs, dim=1)
-            all_draft_logits = torch.stack(all_draft_logits, dim=1)
 
+                draft_sampled_idx = sample(draft_last_logits, top_k=self.top_k, top_p=self.top_p, temperature=self.temperature, ignore_logit_modification=True)
+                all_draft_sampled_idx.append(draft_sampled_idx)
+            
+            q = torch.stack(all_draft_logits, dim=1)
+            all_draft_sampled_idx = torch.stack(all_draft_sampled_idx, dim=1)
+            
             # get target logits for gamma + 1 tokens in parallel
-            target_logits, target_inference_params_dict_out = self.get_logits(self.target_model, x, i, target_inference_params_dict_out, cached_generation, prompt_len)
-            target_last_logits = target_logits[..., -(self.gamma + 1):, :]
-            target_sampled_idx, target_sampled_logits = sample(
-                target_last_logits,
-                top_k=self.top_k,
-                top_p=self.top_p,
-                temperature=self.temperature,
-                return_logits=True,
-            )
+            target_logits, target_inference_params_dict_out = self.get_logits(self.target_model, x[:, :i + gamma + 1], i + gamma + 1, target_inference_params_dict_out, cached_generation, prompt_len)
+            p = target_logits[..., -(gamma + 1):, :]  # (1, gamma + 1, vocab_size)
+            p = modify_logits(p, top_k=self.top_k, top_p=self.top_p, temperature=self.temperature)
 
-            target_prob = torch.softmax(target_sampled_logits, dim=-1)
-            draft_prob = torch.softmax(all_draft_logits, dim=-1)
+            # compute the last accepted draft position (rejection sampling)
+            r = torch.rand(gamma, device=target.device)
+            fractions = p / q
+            n = gamma  # number of accepted guesses
 
-            # Equation X of paper
-            r = torch.uniform(0, 1, size=(batch_size, self.gamma + 1, 1))
-
+            for j in range(gamma):
+                if r[j] > fractions[0, j, i+j]:
+                    n = i
+                    break
             
-            
+            self.drafts_accepted += n
 
+            target_scores[:, i:i + n] = target_logits[:, i:i+n]
+            target_generation[:, i:i + n] = all_draft_sampled_idx[:, i:i+n]
+
+        if verbose:
+            kwargs = {}
+            if not isinstance(self.tokenizer, CharLevelTokenizer):
+                kwargs["skip_special_tokens"] = skip_special_tokens
+            y = self.tokenizer.detokenize_batch(generation[:, : i + 1], **kwargs)
+
+            for until in self.untils:
+                if until in y:
+                    y = y.split(until)[0]
+                    break
+
+            print_rank_0(f"\nInput: {input_string}, Output: {y}")
+
+            mem_end = torch.cuda.memory_allocated(device=x.device) / 1e9
+            print_rank_0(f"Memory after generation: {mem_end} GB")
+
+        return target_generation[:, : i + 1], target_scores[:, : i + 1]
