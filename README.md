@@ -1,11 +1,17 @@
 # Vortex
 
-Utilities for efficient inference and training of deep signal processing models.
+Utilities for efficient inference of deep signal processing models (Hyena, HyenaDNA, StripedHyena2).
+
+## Environment setup (uv)
+
+```bash
+make setup
+```
+
+To make sure you are using the right uv environment, run `source .venv/bin/activate`
 
 
-## Inference
-
-Set up the environment, then run:
+## Quickstart
 
 ```bash
 python3 generate.py \
@@ -16,8 +22,6 @@ python3 generate.py \
 ```
 
 The flag `--cached_generation` is optional, but recommended for faster generation. 
-
-## Kernels
 
 
 
