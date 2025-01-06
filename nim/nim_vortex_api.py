@@ -21,6 +21,9 @@ from dataclasses import dataclass
 from functools import lru_cache
 from os import getenv
 
+def bool_env(env, default=""):
+    return getenv(env, str(default)).lower() in ["y", "yes", "1", "t", "true"]
+
 @lru_cache(maxsize=1)
 def get_model(*,
     config_path,
@@ -84,7 +87,7 @@ def run_generation(
     config_path="shc-evo2-7b-8k-2T-v2.yml",
     dry_run=True,
     checkpoint_path=None,
-    cached_generation=False, # TODO: likely not tested
+    cached_generation=bool_env("NIM_EVO2_CACHED_GENERATION", True),
     timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 600)),
 ) -> GenerationOutput:
     from vortex.model.generation import Generator
