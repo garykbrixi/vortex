@@ -21,8 +21,17 @@ from dataclasses import dataclass
 from functools import lru_cache
 from os import getenv
 
+import logging
+log = logging.getLogger(__name__)
+
 def bool_env(env, default=""):
     return getenv(env, str(default)).lower() in ["y", "yes", "1", "t", "true"]
+
+@lru_cache
+def is_fp8_supported():
+    from transformer_engine.pytorch.fp8 import check_fp8_support
+    log.info(f"{check_fp8_support()=}")
+    return check_fp8_support()[0]
 
 @lru_cache(maxsize=1)
 def get_model(*,
@@ -46,6 +55,10 @@ def get_model(*,
     torch.cuda.manual_seed(1)
 
     config = dotdict(yaml.load(open(config_path), Loader=yaml.FullLoader))
+
+    if config.use_fp8_input_projections and not is_fp8_supported():
+        log.info("fp8 forced off as the support is not present")
+        config.use_fp8_input_projections = False
 
     if config.tokenizer_type == "CharLevelTokenizer":
         tokenizer = CharLevelTokenizer(config.vocab_size)
