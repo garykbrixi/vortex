@@ -73,7 +73,11 @@ def get_model(*,
 
     config = dotdict(yaml.load(open(config_path), Loader=yaml.FullLoader))
 
-    if config.use_fp8_input_projections and not is_fp8_supported():
+    fp8_env = bool_env("NIM_EVO2_FP8", return_optional=True)
+    if fp8_env is not None:
+        log.info(f"Set fp8 preference from env variable: {fp8_env=}")
+        config.use_fp8_input_projections = fp8_env
+    elif config.use_fp8_input_projections and not is_fp8_supported():
         log.info("fp8 forced off as the support is not present")
         config.use_fp8_input_projections = False
 
