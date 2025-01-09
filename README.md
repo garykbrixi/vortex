@@ -13,6 +13,36 @@ To make sure you are using the right uv environment, run `source .venv/bin/activ
 
 ## Quickstart
 
+### In Docker environment
+
+To run 40b generation sample, simply execute:
+
+```bash
+./run
+```
+
+To run 7b generation sample, simply execute:
+
+```bash
+sz=7 ./run
+```
+
+To run tests:
+
+```bash
+./run ./run_tests
+```
+
+To interactively execute commands in docker environment:
+
+```bash
+./run bash
+```
+
+### Without Docker
+
+Set up the environment, then run:
+
 ```bash
 python3 generate.py \
     --config_path /home/zymrael/workspace/stripedhyena-2/configs/shc-evo2-7b-8k-2T-v1.yml \
