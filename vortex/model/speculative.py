@@ -1,0 +1,235 @@
+import torch
+from torch.nn import Module
+from typing import List, Tuple
+import deepcopy
+
+from vortex.model.sample import sample, modify_logits
+from vortex.model.tokenizer import CharLevelTokenizer
+from vortex.model.utils import print_rank_0
+
+
+NUCLEOTIDES = ["A", "C", "T", "G"]
+
+
+def _generate_permutations(length: int, vocab: List[str] = NUCLEOTIDES):
+    L = list(itertools.product(vocab, repeat=length))
+    return ["".join(x) for x in L]
+
+
+def _format_eos_token_ids(tokenizer):
+    if isinstance(tokenizer.eos, int):
+        eos_token_ids = torch.LongTensor([tokenizer.eos])
+    else:
+        eos_token_ids = tokenizer.tokenize(tokenizer.eos)
+    return eos_token_ids
+
+ 
+def _input_string_to_ids(input_string, tokenizer, device):
+    input = tokenizer.tokenize(input_string)
+    if isinstance(input, list):
+        input = torch.LongTensor(input).unsqueeze(0).to(device)
+    # is a tensor
+    else:
+        input = input.unsqueeze(0).to(device)
+    return input
+
+
+class SpeculativeGenerator:
+    def __init__(self, model, tokenizer, top_k=50, top_p=0.7, temperature=1, gamma=4):
+        self.model = model
+        self.tokenizer = tokenizer
+        self.top_k = top_k
+        self.top_p = top_p
+        self.temperature = temperature
+        self.untils = ["\n\n"]
+        self.gamma = gamma
+        self.permutations = _generate_permutations(self.gamma, vocab=NUCLEOTIDES)
+
+    def generate(
+        self,
+        device,
+        input_string=None,
+        input_ids=None,
+        num_tokens=32,
+        cached_generation=False,
+        print_generation=True,
+        verbose=False,
+        skip_special_tokens=False,
+        stop_at_eos=True,
+        max_seqlen=None,
+        token_callback=lambda i: None,
+    ):
+        if isinstance(self.tokenizer.eos, int):
+            eos_token_ids = torch.LongTensor([self.tokenizer.eos]).to(device)
+        else:
+            # is a tensor
+            eos_token_ids = self.tokenizer.tokenize(self.tokenizer.eos).to(device)
+
+        if input_ids is None:
+            input = self.tokenizer.tokenize(input_string)
+            if isinstance(input, list):
+                input = torch.LongTensor(input).unsqueeze(0).to(device)
+            # is a tensor
+            else:
+                input = input.unsqueeze(0).to(device)
+
+        else:
+            input = input_ids
+        x = input
+
+        print(input_string, input)
+
+        if max_seqlen is not None:
+            x = x[:, -max_seqlen:]
+
+        prompt_len = x.shape[-1]
+
+        num_tokens = int(num_tokens)
+        tot_length = prompt_len + num_tokens
+        batch_size = x.shape[0]
+
+        generation = torch.empty(
+            x.shape[0],
+            num_tokens,
+            dtype=torch.long,
+            device=x.device,
+        )
+
+        scores = torch.empty(
+            x.shape[0],
+            num_tokens,
+            self.tokenizer.vocab_size,
+            dtype=torch.float,
+            device=x.device,
+        )
+
+        if cached_generation:
+            inference_params_dict_out = self.model.initialize_inference_params()
+            inference_params_dict_out["mha"].max_batch_size = batch_size
+            inference_params_dict_out["hcl"].max_batch_size = batch_size
+            inference_params_dict_out["hcm"].max_batch_size = batch_size
+            inference_params_dict_out["hcs"].max_batch_size = batch_size
+        else:
+            inference_params_dict_out = None
+
+        if verbose:
+            mem_after_tok = torch.cuda.memory_allocated(device=x.device) / 1e9
+            print_rank_0(f"Memory after tokenization: {mem_after_tok} GB")
+            print_rank_0("Starting generation...")
+            if input_string is not None:
+                print_rank_0("Prompt: " + input_string)
+            else:
+                print_rank_0(f"Prompt ids: {input_ids} {input_ids.shape}")
+        
+
+        for i in range(int(num_tokens)):
+            post_prefill = cached_generation and i > 0
+            # prefill then process only the last token
+
+            if not post_prefill:
+                # prefill by directly obtaining target model indices and calculate cache
+                
+            if post_prefill:
+                x = x[:, -1:]
+                seqlen_offset = inference_params_dict_out["mha"].seqlen_offset
+
+                if seqlen_offset == 0:
+                    seqlen_offset = input.shape[-1]
+                    inference_params_dict_out["mha"].seqlen_offset = seqlen_offset
+                    inference_params_dict_out["hcl"].seqlen_offset = seqlen_offset
+                    inference_params_dict_out["hcm"].seqlen_offset = seqlen_offset
+                    inference_params_dict_out["hcs"].seqlen_offset = seqlen_offset
+
+                else:
+                    inference_params_dict_out["mha"].seqlen_offset += 1
+                    inference_params_dict_out["hcl"].seqlen_offset += 1
+                    inference_params_dict_out["hcm"].seqlen_offset += 1
+                    inference_params_dict_out["hcs"].seqlen_offset += 1
+
+            # todo: figure out draft cache
+            draft_inference_params_dict = deepcopy.copy(inference_params_dict_out)
+            # draft_inference_params_dict = None
+            import pdb;pdb.set_trace()
+            
+            # get draft logits from permutations
+            permutation_ids = _input_string_to_ids(self.permutations, self.tokenizer, device)  # (len(self.permutations), gamma)
+            print("permutation_ids.shape, x.shape", permutation_ids.shape, x.shape)
+            x_batch = x.repeat(len(self.permutations), dim=0)
+            print("x_batch.shape", x_batch.shape)
+            x_batch = torch.cat([x_batch, permutation_ids], dim=1)
+            print("x_batch.shape", x_batch.shape)
+
+            with torch.no_grad():
+                draft_logits, draft_inference_params_dict_out = self.model(
+                    x_batch,
+                    draft_inference_params_dict
+                )
+            
+            # turn from draft logits to indices
+            draft_logits = modify_logits(draft_logits, top_k=self.top_k, top_p=self.top_p, temperature=self.temperature)
+            
+            draft_indices = sample(
+                draft_logits,
+                top_k=self.top_k,
+                top_p=self.top_p, 
+                temperature=self.temperature,
+                ignore_logit_modification=True
+            )
+            
+
+            # get target logits
+            with torch.no_grad():
+                logits, inference_params_dict_out = self.model(
+                    x,
+                    inference_params_dict=inference_params_dict_out,
+                )
+
+            token_callback(i)
+
+            last_logits = logits[:, -1]
+            if print_generation and verbose and batch_size == 1:
+                print(
+                    last_logits.shape, last_logits.min(), last_logits.max(), last_logits
+                )
+
+            new_idx = sample(
+                last_logits,
+                top_k=self.top_k,
+                top_p=self.top_p,
+                temperature=self.temperature,
+            )
+
+            if stop_at_eos and (generation[0, -2:] == eos_token_ids).all():
+                print_rank_0("Stopping generation at EOS")
+
+            if print_generation and verbose and batch_size == 1:
+                print_rank_0(
+                    f"{self.tokenizer.detokenize([new_idx.item()])}",
+                    end=" ",
+                )
+
+            scores[:, i] = last_logits
+            generation[:, i] = new_idx
+
+            if post_prefill:
+                x = new_idx[:, None]
+            else:
+                x = torch.cat([x, new_idx[:, None]], dim=-1)
+
+        if verbose:
+            kwargs = {}
+            if not isinstance(self.tokenizer, CharLevelTokenizer):
+                kwargs["skip_special_tokens"] = skip_special_tokens
+            y = self.tokenizer.detokenize_batch(generation[:, : i + 1], **kwargs)
+
+            for until in self.untils:
+                if until in y:
+                    y = y.split(until)[0]
+                    break
+
+            print_rank_0(f"\nInput: {input_string}, Output: {y}")
+
+            mem_end = torch.cuda.memory_allocated(device=x.device) / 1e9
+            print_rank_0(f"Memory after generation: {mem_end} GB")
+
+        return generation[:, : i + 1], scores[:, : i + 1]
