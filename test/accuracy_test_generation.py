@@ -151,7 +151,6 @@ def main():
     if args.checkpoint_path:
         m.custom_load_state_dict(torch.load(args.checkpoint_path, map_location=device), strict=False)
 
-    m = m.to(device)
     m.to_bfloat16_except_pr_lc()
 
     g = Generator(m, tokenizer, top_k=args.top_k, top_p=args.top_p, temperature=args.temperature)
