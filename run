@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 default_cmd="./run_generate"
 
 run_args=(-it --rm
+    $DOCKER_RUN_ARGS
     --gpus=all
     --ipc=host --ulimit memlock=-1 --ulimit stack=67108864
     -v $PWD:/workdir
@@ -14,5 +15,5 @@ run_args=(-it --rm
     ${@:-$default_cmd}
 )
 
-docker build -t vortex .
-docker run "${run_args[@]}"
+docker build -t vortex $DOCKER_BUILD_ARGS .
+docker run --entrypoint "" "${run_args[@]}"

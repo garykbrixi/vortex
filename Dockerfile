@@ -1,5 +1,6 @@
 from nvcr.io/nvidia/pytorch:24.10-py3 as base
-copy requirements.txt .
+arg REQUIREMENTS=requirements.txt.frozen
+copy ${REQUIREMENTS} .
 run --mount=type=cache,target=/root/.cache \
-    pip install -r requirements.txt
+    pip install -r ${REQUIREMENTS}
 workdir /workdir
