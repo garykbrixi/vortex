@@ -61,7 +61,7 @@ def generate_and_score(sequences, generator, tokenizer, args, generations_per_pr
                 cached_generation=args.cached_generation,
                 input_string=prompt,
                 device=device,
-                verbose=True,
+                verbose=False,
                 print_generation=False,
                 max_seqlen=8192
             )[0].cpu().numpy()[0]
@@ -98,6 +98,8 @@ def calculate_sequence_identity(seq1: str, seq2: str, amino_acids=False) -> Opti
     
     alignment = aligner.align(seq1, seq2)[0]
 
+    print(alignment)
+
     matches = sum(a == b for a, b in zip(alignment[0], alignment[1]))
 
     return (matches / min(len(seq1),len(seq2))) * 100
@@ -116,8 +118,8 @@ def main():
     parser = argparse.ArgumentParser(description="Run StripedHyena Model")
     parser.add_argument("--config_path", required=True, help="Path to configuration file")
     parser.add_argument("--checkpoint_path", default=None, help="Path to checkpoint file")
-    parser.add_argument("--num_tokens", default=100, help="Number of tokens to generate.")
-    parser.add_argument("--temperature", default=1.0, type=float)
+    parser.add_argument("--num_tokens", default=500, help="Number of tokens to generate.")
+    parser.add_argument("--temperature", default=0.7, type=float)
     parser.add_argument("--top_k", default=4, type=int)
     parser.add_argument("--top_p", default=1.0, type=float)
     parser.add_argument("--generations_per_prompt", default=1, type=int)
@@ -146,7 +148,6 @@ def main():
     if args.checkpoint_path:
         m.custom_load_state_dict(torch.load(args.checkpoint_path, map_location=device), strict=False)
 
-    m = m.to(device)
     m.to_bfloat16_except_pr_lc()
 
     g = Generator(m, tokenizer, top_k=args.top_k, top_p=args.top_p, temperature=args.temperature)

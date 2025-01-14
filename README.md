@@ -2,16 +2,7 @@
 
 Utilities for efficient inference of deep signal processing models (Hyena, HyenaDNA, StripedHyena2).
 
-## Environment setup (uv)
-
-```bash
-make setup
-```
-
-To make sure you are using the right uv environment, run `source .venv/bin/activate`
-
-
-## Quickstart
+## Inference
 
 ### In Docker environment
 
@@ -41,7 +32,15 @@ To interactively execute commands in docker environment:
 
 ### Without Docker
 
-Set up the environment, then run:
+#### Environment setup (uv)
+
+```bash
+make setup
+```
+
+To make sure you are using the right uv environment, run `source .venv/bin/activate`
+
+#### Run generation script
 
 ```bash
 python3 generate.py \
@@ -51,7 +50,4 @@ python3 generate.py \
     --cached_generation
 ```
 
-The flag `--cached_generation` is optional, but recommended for faster generation. 
-
-
-
+The flag `--cached_generation` is optional, but recommended for faster generation.
