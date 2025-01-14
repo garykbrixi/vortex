@@ -70,7 +70,6 @@ class TELinear(Linear):
             parallel_mode=None,
             bias=bias,
             return_bias=self.te_return_bias,
-            device = torch.cuda.current_device(),
             **kwargs,
         )
 
