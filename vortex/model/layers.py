@@ -7,9 +7,14 @@ from torch import Tensor
 from typing import Callable
 from vortex.model.utils import grab_first_if_tuple
 
-from transformer_engine.pytorch import Linear
-from transformer_engine.common.recipe import Format, DelayedScaling
-import transformer_engine.pytorch as te
+try:
+    from transformer_engine.pytorch import Linear
+    from transformer_engine.common.recipe import Format, DelayedScaling
+    import transformer_engine.pytorch as te
+except:
+    print("WARNING: transformer_engine not installed. Using default recipe.")
+    raise NotImplementedError
+
 
 def set_format_recipe():
     fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
@@ -64,7 +69,6 @@ class TELinear(Linear):
             parallel_mode=None,
             bias=bias,
             return_bias=self.te_return_bias,
-            device = torch.cuda.current_device(),
             **kwargs,
         )
 

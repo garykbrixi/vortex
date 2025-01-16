@@ -1,9 +1,5 @@
 # Copyright (c) 2024, Michael Poli.
 
-# Copyright (c) Together
-# This software is distributed under the terms of the Apache License, Version 2.0
-# Author: Michael Poli
-# Note: MP and PP utilities are removed for ease of use and editing.
 import math
 import torch
 import torch.nn as nn
@@ -15,9 +11,15 @@ from vortex.model.cache import (
     HyenaCascadeIIRInferenceParams,
 )
 from vortex.model.engine import HyenaInferenceEngine
-from vortex.model.layers import ParallelGatedMLP, RMSNorm, VocabParallelEmbedding, TELinear
-from vortex.model.utils import column_split, interleave, print_rank_0, move_to_device
-from vortex.logging import initialize_vortex_logger, activations_logger
+from vortex.model.layers import (
+    ParallelGatedMLP,
+    RMSNorm,
+    VocabParallelEmbedding,
+    VocabParallelUnembedding,
+    TELinear,
+)
+from vortex.model.utils import Lambda, column_split, interleave, print_rank_0, move_to_device
+from vortex.logging import activations_logger, enable_activations_logging
 
 import logging
 from tqdm import tqdm
@@ -449,8 +451,16 @@ class ParallelGatedConvBlock(nn.Module):
         )
         dtype = config.get("hyena_block_dtype", torch.bfloat16)
         mlp_dtype = config.get("mlp_dtype", torch.bfloat16)
-        self.pre_norm, self.post_norm = RMSNorm(config).to(dtype=dtype), RMSNorm(config).to(dtype=dtype)
-        self.filter = HyenaCascade(config, layer_idx, hyena_filter_groups=self.hyena_filter_groups, fir_inner_filter_length=fir_inner_filter_length).to(dtype=dtype)
+        self.pre_norm, self.post_norm = (
+            RMSNorm(config).to(dtype=dtype),
+            RMSNorm(config).to(dtype=dtype),
+        )
+        self.filter = HyenaCascade(
+            config,
+            layer_idx,
+            hyena_filter_groups=self.hyena_filter_groups,
+            fir_inner_filter_length=fir_inner_filter_length,
+        ).to(dtype=dtype)
         self.projections = TELinear(
             config.hidden_size,
             3 * config.hidden_size,
@@ -458,9 +468,12 @@ class ParallelGatedConvBlock(nn.Module):
             init_method=torch.nn.init.xavier_uniform_,
             use_fp8=config.get("use_fp8_input_projections", False),
         )
-            
-        
-        self.out_filter_dense = nn.Linear(config.hidden_size, config.hidden_size, bias=config.hyena_out_proj_bias).to(dtype)
+
+        # TODO: commented out. why not assigned anywhere?
+        # nn.Linear(config.hidden_size, 3 * config.hidden_size, bias=config.qkv_proj_bias)
+        self.out_filter_dense = nn.Linear(
+            config.hidden_size, config.hidden_size, bias=config.hyena_out_proj_bias
+        ).to(dtype)
         self.mlp = ParallelGatedMLP(config, layer_idx).to(dtype=mlp_dtype)
 
         # self.proj_norm_fn = self.proj_norm
@@ -503,16 +516,24 @@ class ParallelGatedConvBlock(nn.Module):
                 )
 
                 activation_diff = (x.squeeze() - pre_norm_savanna.squeeze()).abs()
-                activations_logger.info(f"pre mixer norm activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
-                activation_diff = (self.pre_norm(x).squeeze() - post_norm_savanna.squeeze()).abs()
-                activations_logger.info(f"post mixer norm activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
-                activations_logger.info(f"pre norm scale: {self.pre_norm.scale}, {self.pre_norm.scale.min()}, {self.pre_norm.scale.max()}")
-        
+                activations_logger.info(
+                    f"pre mixer norm activation_diff: {activation_diff.max()}, {activation_diff.mean()}"
+                )
+                activation_diff = (
+                    self.pre_norm(x).squeeze() - post_norm_savanna.squeeze()
+                ).abs()
+                activations_logger.info(
+                    f"post mixer norm activation_diff: {activation_diff.max()}, {activation_diff.mean()}"
+                )
+                activations_logger.info(
+                    f"pre norm scale: {self.pre_norm.scale}, {self.pre_norm.scale.min()}, {self.pre_norm.scale.max()}"
+                )
+
         normalized = self.pre_norm(x)
         normalized = self.pad_to_multiple(normalized)
         with torch.cuda.device(x.device):
             projected = self.projections(normalized)
-        
+
         if isinstance(projected, tuple):
             projected = projected[0]
 
@@ -569,19 +590,12 @@ class ParallelGatedConvBlock(nn.Module):
                     f"{self.ground_truth_activations_path}/pre_filter_{self.layer_idx}.pt"
                 )
                 activation_diff = (z - z_savanna.squeeze()).abs()
-                activations_logger.info(f"pre filter activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
-
-        z, inference_params = self.filter(z, inference_params=inference_params, padding_mask=padding_mask)
-        
-        
-        if self.print_activations:
-            activations_logger.info(f"post postgate: {z} {z.min()} {z.max()} {self.filter.__class__}")
-            activations_logger.info(f"post out proj: {self.out_filter_dense(z)} {self.out_filter_dense(z).min()} {self.out_filter_dense(z).max()} {self.out_filter_dense.__class__}")
-            activations_logger.info(f"post mixer: {self.out_filter_dense(z) + u} {(self.out_filter_dense(z) + u).min()} {(self.out_filter_dense(z) + u).max()}")
-            if self.ground_truth_activations_path:
-                z_savanna = torch.load(f"{self.ground_truth_activations_path}/post_filter_{self.layer_idx}.pt")
-                activation_diff = (z - z_savanna.squeeze()).abs()
-                activations_logger.info(f"post filter activation_diff: {activation_diff.max()}, {activation_diff.mean()}")    
+                activations_logger.info(
+                    f"pre filter activation_diff: {activation_diff.max()}, {activation_diff.mean()}"
+                )
+        z, inference_params = self.filter(
+            z, inference_params=inference_params, padding_mask=padding_mask
+        )
 
         if self.print_activations:
             activations_logger.info(
@@ -693,40 +707,35 @@ class StripedHyena(nn.Module):
         layers_per_gpu = math.ceil(config.num_layers / num_gpus)
         self.logger.info(f"Distributing across {num_gpus} GPUs, approximately {layers_per_gpu} layers per GPU")
 
-        ### new debug attempt
-        # for layer_idx in range(config.num_layers):
-        #     block = get_block(config, layer_idx, flash_fft=self.flash_fft)
-        #     self.blocks.append(block)
-
-        # self.blocks[layers_per_gpu:].to("cuda:1")
-        
-        # self.block_idx_to_device = {i: f"cuda:{i // layers_per_gpu}" for i in range(config.num_layers)}
-
         for layer_idx in tqdm(range(config.num_layers)):
             # Determine which GPU should handle this layer
             device_idx = min(layer_idx // layers_per_gpu, num_gpus - 1)
             device = f"cuda:{device_idx}" if torch.cuda.is_available() else "cpu"
-            
+
             with torch.device(device):
                 block = get_block(config, layer_idx, flash_fft=self.flash_fft)
-                # block.to(device)
                 move_to_device(block, device)
 
             self.blocks.append(block)
             self.block_idx_to_device[layer_idx] = device
             self.logger.info(f"Assigned {layer_idx=} to {device=}")
-        
+            self.logger.info(
+                f"Parameter count for block {layer_idx}: {sum(p.numel() for p in self.blocks[-1].parameters())}"
+            )
+
         with torch.device(self.block_idx_to_device[0]):
             self.norm = RMSNorm(config) if config.get("final_norm", True) else None
             if config.tie_embeddings:
-                self.unembed = self.embedding_layer
+                # Lambda usage is to be able to use forward() on caller side, which in
+                # turn is needed for PyTorch hooks to work properly.
+                self.unembed = Lambda(self.embedding_layer.unembed)
             else:
                 if config.tie_embeddings:
                     # Technically we can support this mode, just need to
                     # copy tensors across GPUs then. But let's implement it
                     # once/if needed.
                     self.logger.info("Ignoring tie_embeddings for now.")
-                self.unembed = VocabParallelEmbedding(config)
+                self.unembed = VocabParallelUnembedding(config)
 
         self.logger.info("Initialized model")
 
@@ -757,8 +766,12 @@ class StripedHyena(nn.Module):
         x = x.to(self.block_idx_to_device[0])
         x = self.norm(x)
 
-        x = self.unembed.unembed(x)
+        if self.print_activations:
+            activations_logger.info(
+                f"post norm: {x}, {x.min()}, {x.max(), {self.norm.scale}}"
+            )
 
+        x = self.unembed(x)
         return x, inference_params_dict_out
 
     def block_idx_to_name(self, block_idx):
@@ -791,8 +804,10 @@ class StripedHyena(nn.Module):
                         f"{self.ground_truth_activations_path}/pre_block_{block_idx}.pt"
                     )
                     activation_diff = (x - x_savanna.squeeze()).abs()
-                    activations_logger.info(f"pre block {block_idx} activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
-            
+                    activations_logger.info(
+                        f"pre block {block_idx} activation_diff: {activation_diff.max()}, {activation_diff.mean()}"
+                    )
+
             x = self.cross_device_transfer(x, block_idx)
             x, _ = block(x, inference_params=inference_params)
 
@@ -825,8 +840,10 @@ class StripedHyena(nn.Module):
                         f"{self.ground_truth_activations_path}/pre_block_{block_idx}.pt"
                     )
                     activation_diff = (x - x_savanna.squeeze()).abs()
-                    activations_logger.info(f"pre block {block_idx} activation_diff: {activation_diff.max()}, {activation_diff.mean()}")
-            
+                    activations_logger.info(
+                        f"pre block {block_idx} activation_diff: {activation_diff.max()}, {activation_diff.mean()}"
+                    )
+
             x = self.cross_device_transfer(x, block_idx)
             x, _ = block(x, inference_params=None, padding_mask=padding_mask)
 
@@ -911,28 +928,27 @@ class StripedHyena(nn.Module):
 
                     block.filter.poles = nn.Parameter(poles)
                     block.filter.residues = nn.Parameter(residues)
-    
-    
+
     def custom_load_state_dict(self, state_dict, strict=True):
         """
         Post-processes the state_dict to convert savanna checkpoints to vortex checkpoints.
         """
-        self.logger.info(f"Loading state dict: {state_dict}, (ignoring extra keys) with strict: {strict}")
+        self.logger.debug(f"Loading state dict: {state_dict}, (ignoring extra keys) with strict: {strict}")
         model_dict = self.state_dict()
-    
+
         # Find keys that are in model_dict but not in state_dict
         missing_in_state_dict = model_dict.keys() - state_dict.keys()
         # Find keys that are in state_dict but not in model_dict
         extra_in_state_dict = state_dict.keys() - model_dict.keys()
-        
+
         if missing_in_state_dict:
             print(f"Keys missing in state_dict: {missing_in_state_dict}")
         if extra_in_state_dict:
             print(f"Extra keys in state_dict: {extra_in_state_dict}")
-        
+
 
         filtered_dict = {k: v for k, v in state_dict.items() if k in model_dict}
-    
+
         self.load_state_dict(filtered_dict, strict=strict)
 
         if self.config.get("column_split", True):
@@ -940,7 +956,7 @@ class StripedHyena(nn.Module):
             for layer_idx, block in enumerate(self.blocks):
                 if type(block) == AttentionBlock:
                     target_device = block.inner_mha_cls.Wqkv.weight.device
-                    
+
                     Wqkv = state_dict[f"blocks.{layer_idx}.inner_mha_cls.Wqkv.weight"]
                     try:
                         bias = state_dict[f"blocks.{layer_idx}.inner_mha_cls.Wqkv.bias"]
@@ -959,7 +975,7 @@ class StripedHyena(nn.Module):
                     Wv = Wv.reshape(block.hidden_size, -1)
                     Wqkv = torch.cat([Wq, Wk, Wv], dim=-1)
                     Wqkv = Wqkv.permute(1, 0)
-                    
+
                     # Single device transfer at the end
                     block.inner_mha_cls.Wqkv.weight.data = Wqkv.to(target_device)
 

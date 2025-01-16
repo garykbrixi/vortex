@@ -44,10 +44,7 @@ def generate_and_score(sequences, generator, tokenizer, args, generations_per_pr
     
     # Prepare all prompts and targets
     for seq in sequences:
-        mid_point = 3*(len(seq)//4)
-        
-        prompt = seq[:mid_point]
-        target = seq[mid_point:mid_point+args.num_tokens*2] #Only compare to the section of sequence directly
+        prompt, target = mid_point_split(seq=seq, num_tokens=args.num_tokens)
         
         # Repeat prompt for multiple generations
         prompts.extend([prompt] * generations_per_prompt)

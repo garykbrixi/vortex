@@ -1,8 +1,8 @@
+import rich
 import logging
 from rich.logging import RichHandler
 
-LOGGING_FORMAT = "%(name)s - %(levelname)s - %(message)s"
-
+LOGGING_FORMAT='%(name)s - %(levelname)s - %(message)s'
 
 def maybe_initialize_root_logger():
     """
@@ -14,12 +14,10 @@ def maybe_initialize_root_logger():
         format=LOGGING_FORMAT,
     )
 
-
 maybe_initialize_root_logger()
 
-activations_file_handler = logging.FileHandler("activations_debug.log")
+activations_file_handler = logging.FileHandler('activations_debug.log')
 activations_file_handler.setFormatter(logging.Formatter(LOGGING_FORMAT))
-
 
 def initialize_activations_logger():
     """
@@ -33,7 +31,7 @@ def initialize_activations_logger():
     # We still allow errors via activation logger, though.
     level = logging.ERROR
 
-    logger = logging.getLogger("activations_logger")
+    logger = logging.getLogger('activations_logger')
     logger.setLevel(level)
 
     if activations_file_handler not in logger.handlers:
@@ -45,9 +43,7 @@ def initialize_activations_logger():
         activations_file_handler.setLevel(level)
     return logger
 
-
 activations_logger = initialize_activations_logger()
-
 
 def enable_activations_logging():
     # This enables [up to] debug-level printouts to the console.
