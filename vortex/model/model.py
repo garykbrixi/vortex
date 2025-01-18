@@ -685,8 +685,15 @@ class StripedHyena(nn.Module):
         )
         self.logger.info(f"Initializing StripedHyena with config: {config}")
 
-        with torch.device("cuda:0" if torch.cuda.is_available() else "cpu"):
-            self.embedding_layer = VocabParallelEmbedding(config)
+        self.embedding_layer = VocabParallelEmbedding(config)
+        self.norm = RMSNorm(config) if config.get("final_norm", True) else None
+        # Lambda usage is to be able to use forward() on caller side, which in
+        # turn is needed for PyTorch hooks to work properly.
+        self.unembed = (
+            Lambda(self.embedding_layer.unembed)
+            if config.tie_embeddings
+            else VocabParallelUnembedding(config)
+        )
 
         if config.get("use_flashfft", "True"):
             try:

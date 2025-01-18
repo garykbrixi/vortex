@@ -7,6 +7,7 @@ from torch import Tensor
 from typing import Callable
 from vortex.model.utils import grab_first_if_tuple
 
+<<<<<<< HEAD
 try:
     from transformer_engine.pytorch import Linear
     from transformer_engine.common.recipe import Format, DelayedScaling
@@ -14,6 +15,11 @@ try:
 except:
     print("WARNING: transformer_engine not installed. Using default recipe.")
     raise NotImplementedError
+=======
+from transformer_engine.pytorch import Linear
+from transformer_engine.common.recipe import Format, DelayedScaling
+import transformer_engine.pytorch as te
+>>>>>>> origin/main
 
 
 def set_format_recipe():
@@ -23,10 +29,9 @@ def set_format_recipe():
     )
     return fp8_format, fp8_recipe
 
-
 class TELinear(Linear):
     """
-    Wrapper for the Transformer-Engine's `Linear` layer.
+    Wrapper for Transformer-Engine's `Linear` layer.
 
     Note that if Megatron's parallel_state has not been initialized
     yet, the tp_group passed to TE will be None and must be set later
