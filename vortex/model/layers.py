@@ -7,19 +7,9 @@ from torch import Tensor
 from typing import Callable
 from vortex.model.utils import grab_first_if_tuple
 
-<<<<<<< HEAD
-try:
-    from transformer_engine.pytorch import Linear
-    from transformer_engine.common.recipe import Format, DelayedScaling
-    import transformer_engine.pytorch as te
-except:
-    print("WARNING: transformer_engine not installed. Using default recipe.")
-    raise NotImplementedError
-=======
 from transformer_engine.pytorch import Linear
 from transformer_engine.common.recipe import Format, DelayedScaling
 import transformer_engine.pytorch as te
->>>>>>> origin/main
 
 
 def set_format_recipe():
