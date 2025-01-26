@@ -41,6 +41,10 @@ def test_dna_model(model, device='cuda:0'):
 
     with torch.no_grad():
         output1, _ = model.forward(input_ids)
+    
+    #save output1 for debugging
+    # torch.save(output1, "40b_504k_logits_16srrnagene.pt")
+
     logprobs = torch.log_softmax(output1[:, :-1, :], dim=-1)
     chars = torch.argmax(logprobs, dim=-1)
 
