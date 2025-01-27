@@ -30,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--input_file", default="./prompt.txt", help="Path to prompt file."
     )
-    input_group.add_argument('--prompt', type=str, help='Single DNA prompt sequence')
+    parser.add_argument('--prompt', type=str, help='Single DNA prompt sequence')
     parser.add_argument("--temperature", default=1, type=float)
     parser.add_argument("--repetition_penalty", default=1, type=float)
     parser.add_argument("--penalty_alpha", default=0, type=float)
