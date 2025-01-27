@@ -146,7 +146,6 @@ def main():
         m = StripedHyena(config).to(torch.float32)
 
     load_checkpoint(m, checkpoint_path=args.checkpoint_path)
-
     g = Generator(m, tokenizer, top_k=args.top_k, top_p=args.top_p, temperature=args.temperature)
 
     sequences = read_prompts('./test/data/prompts.csv')

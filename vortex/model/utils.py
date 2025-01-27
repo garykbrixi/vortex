@@ -99,7 +99,7 @@ def load_checkpoint(model, checkpoint_path):
             mmap=True,
             # Make sure PyTorch is not issuing a warning regarding potential
             # security issues.
-            weights_only=True,
+            weights_only=False,
         )
         model.custom_load_state_dict(state)
 

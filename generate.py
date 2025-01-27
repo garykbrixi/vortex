@@ -30,6 +30,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--input_file", default="./prompt.txt", help="Path to prompt file."
     )
+    input_group.add_argument('--prompt', type=str, help='Single DNA prompt sequence')
     parser.add_argument("--temperature", default=1, type=float)
     parser.add_argument("--repetition_penalty", default=1, type=float)
     parser.add_argument("--penalty_alpha", default=0, type=float)
@@ -70,8 +71,11 @@ if __name__ == "__main__":
 
     print_rank_0(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
 
-    with open(args.input_file, "r") as f:
-        input_string = f.read()
+    if args.prompt:
+        input_string = args.prompt
+    else:
+        with open(args.input_file, "r") as f:
+            input_string = f.read()
     print_rank_0(f"Prompt: {input_string}", end="\n\n")
 
     with torch.inference_mode():
