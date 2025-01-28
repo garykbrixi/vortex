@@ -21,6 +21,35 @@ from dataclasses import dataclass
 from functools import lru_cache
 from os import getenv
 
+import logging
+log = logging.getLogger(__name__)
+
+def bool_env(env, default="", *, return_optional=False):
+    if getenv(env) is None and return_optional:
+        return None
+    return getenv(env, str(default)).lower() in ["y", "yes", "1", "t", "true"]
+
+@lru_cache
+def is_fp8_supported():
+    from transformer_engine.pytorch.fp8 import check_fp8_support
+    log.info(f"{check_fp8_support()=}")
+    return check_fp8_support()[0]
+
+@lru_cache
+def should_use_cached_generation():
+    env = bool_env("NIM_EVO2_CACHED_GENERATION", return_optional=True)
+    if env is not None:
+        log.info(f"Set cached generation preference from env variable: {env=}")
+        return env
+
+    mem_gb = torch.cuda.get_device_properties(0).total_memory // 1024 // 1024 // 1024
+    # So far cached generation is only practical on A100/H100 and above.
+    if mem_gb > 60:
+        log.info(f"Will use cached generation, {mem_gb=}")
+        return True
+    log.info(f"Will not use cached generation, {mem_gb=}")
+    return False
+
 @lru_cache(maxsize=1)
 def get_model(*,
     config_path,
@@ -43,6 +72,14 @@ def get_model(*,
     torch.cuda.manual_seed(1)
 
     config = dotdict(yaml.load(open(config_path), Loader=yaml.FullLoader))
+
+    fp8_env = bool_env("NIM_EVO2_FP8", return_optional=True)
+    if fp8_env is not None:
+        log.info(f"Set fp8 preference from env variable: {fp8_env=}")
+        config.use_fp8_input_projections = fp8_env
+    elif config.use_fp8_input_projections and not is_fp8_supported():
+        log.info("fp8 forced off as the support is not present")
+        config.use_fp8_input_projections = False
 
     if config.tokenizer_type == "CharLevelTokenizer":
         tokenizer = CharLevelTokenizer(config.vocab_size)
@@ -84,7 +121,6 @@ def run_generation(
     config_path="shc-evo2-7b-8k-2T-v2.yml",
     dry_run=True,
     checkpoint_path=None,
-    cached_generation=False, # TODO: likely not tested
     timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 600)),
 ) -> GenerationOutput:
     from vortex.model.generation import Generator
@@ -107,7 +143,7 @@ def run_generation(
         g = Generator(m, tokenizer, top_k=top_k, top_p=top_p, temperature=temperature)
         tokens, logits = g.generate(
             num_tokens=num_tokens,
-            cached_generation=cached_generation,
+            cached_generation=should_use_cached_generation(),
             input_string=input_string,
             device=device,
             verbose=True,
