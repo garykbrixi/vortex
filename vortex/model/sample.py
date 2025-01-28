@@ -28,6 +28,20 @@ def modify_logits_for_top_p_filtering(logits, top_p):
     logits.masked_fill_(indices_to_remove, float("-inf"))
 
 
+def modify_logits(logits, top_k=1, top_p=0.0, temperature=1.0):
+    if top_k > 0:
+        top_k = min(top_k, logits.size(-1))  # Safety check
+        logits_top, indices = torch.topk(logits, top_k, dim=-1)
+        if temperature != 1.0:
+            logits_top /= temperature
+        modify_logits_for_top_p_filtering(logits_top, top_p)
+        return logits_top, indices
+    else:
+        logits_top = logits / temperature if temperature != 1.0 else logits.clone()
+        modify_logits_for_top_p_filtering(logits_top, top_p)
+        return logits_top
+
+
 # https://github.com/Dao-AILab/flash-attention/blob/main/flash_attn/utils/generation.py
 def sample(logits, top_k=1, top_p=0.0, temperature=1.0):
     """Sample from top-k logits.
@@ -40,26 +54,20 @@ def sample(logits, top_k=1, top_p=0.0, temperature=1.0):
 
     if top_k == 1:  # Short-circuit for greedy decoding
         return logits.argmax(dim=-1)
-    else:
-        if top_p > 0.0:
-            assert top_p <= 1.0, "top-p should be in (0, 1]."
-        if top_k > 0:
-            top_k = min(top_k, logits.size(-1))  # Safety check
-            logits_top, indices = torch.topk(logits, top_k, dim=-1)
-            if temperature != 1.0:
-                logits_top /= temperature
-            modify_logits_for_top_p_filtering(logits_top, top_p)
-
-            return indices[
-                torch.arange(indices.shape[0], device=indices.device),
-                torch.multinomial(
-                    torch.softmax(logits_top, dim=-1), num_samples=1
-                ).squeeze(dim=-1),
-            ]
-        else:
-            # Clone so that when we modify for top_p we don't change the original logits
-            logits_top = logits / temperature if temperature != 1.0 else logits.clone()
-            modify_logits_for_top_p_filtering(logits_top, top_p)
-            return torch.multinomial(
+    
+    if top_p > 0.0: 
+        assert top_p <= 1.0, "top-p should be in (0, 1]."
+    
+    if top_k > 0:
+        logits_top, indices = modify_logits(logits, top_k, top_p, temperature)
+        return indices[
+            torch.arange(indices.shape[0], device=indices.device),
+            torch.multinomial(
                 torch.softmax(logits_top, dim=-1), num_samples=1
-            ).squeeze(dim=-1)
+            ).squeeze(dim=-1),
+        ]
+    else:
+        logits_top = modify_logits(logits, top_k, top_p, temperature)
+        return torch.multinomial(
+            torch.softmax(logits_top, dim=-1), num_samples=1
+        ).squeeze(dim=-1)
