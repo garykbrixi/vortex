@@ -64,7 +64,7 @@ def get_model(*,
 
     from vortex.model.model import StripedHyena
     from vortex.model.tokenizer import HFAutoTokenizer, CharLevelTokenizer
-    from vortex.model.utils import dotdict
+    from vortex.model.utils import dotdict, load_checkpoint
 
     torch.set_printoptions(precision=2, threshold=5)
 
@@ -86,20 +86,12 @@ def get_model(*,
     else:
         tokenizer = HFAutoTokenizer(config.vocab_file)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    with torch.device(device):
-        m = StripedHyena(config)
+    m = StripedHyena(config)
 
-    if not dry_run:
-        if checkpoint_path:
-            state_dict = torch.load(checkpoint_path, map_location=device)
-            # inv_freq are instantiated as parameters
-            m.custom_load_state_dict(state_dict, strict=False)
-
-    m.to_bfloat16_except_pr_lc()
+    load_checkpoint(m, checkpoint_path)
 
     print(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
-    return m, tokenizer, device
+    return m, tokenizer, "cuda:0"
 
 def to_sampled_probs(sequence, logits) -> list[float]:
     probs = torch.softmax(logits, dim=-1)
