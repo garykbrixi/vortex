@@ -47,6 +47,10 @@ def should_use_cached_generation():
     if mem_gb > 60:
         log.info(f"Will use cached generation, {mem_gb=}")
         return True
+    gpus = torch.cuda.device_count()
+    if gpus >= 2:
+        log.info(f"Will use cached generation, {gpus=}")
+        return True
     log.info(f"Will not use cached generation, {mem_gb=}")
     return False
 
@@ -123,7 +127,7 @@ def run_generation(
     checkpoint_path=None,
     timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 600)),
 ) -> GenerationOutput:
-    from vortex.model.generation import Generator
+    from vortex.model.generation import generate
 
     m, tokenizer, device = get_model(
         config_path=config_path,
@@ -140,22 +144,23 @@ def run_generation(
             raise TimeoutError(f"Timed out on {i}th token out of {num_tokens} requested. Allowed to run for {timeout_s} seconds.")
 
     with torch.inference_mode():
-        g = Generator(m, tokenizer, top_k=top_k, top_p=top_p, temperature=temperature)
-        tokens, logits = g.generate(
-            num_tokens=num_tokens,
+        ret = generate(
+            prompt_seqs=[input_string],
+            n_tokens=num_tokens,
+            model=m,
+            tokenizer=tokenizer,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
             cached_generation=should_use_cached_generation(),
-            input_string=input_string,
-            device=device,
-            verbose=True,
-            print_generation=True,
-            max_seqlen=8192,
+            verbose=2,
             token_callback=token_callback,
+            device=device,
         )
-        sequence = tokenizer.detokenize_batch(tokens)[0]
         return GenerationOutput(
-            sequence=sequence,
-            logits=logits[0].tolist(),
-            sampled_probs=to_sampled_probs(sequence, logits[0]),
+            sequence=ret.sequences[0],
+            logits=ret.logits[0][0].tolist(),
+            sampled_probs=to_sampled_probs(ret.sequences[0], ret.logits[0][0]),
         )
 
 def test_vortex_generation():
