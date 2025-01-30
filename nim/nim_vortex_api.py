@@ -135,7 +135,7 @@ def run_generation(
     config_path="shc-evo2-7b-8k-2T-v2.yml",
     dry_run=True,
     checkpoint_path=None,
-    timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 1200)),
+    timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 2 * 60 * 60)),
 ) -> GenerationOutput:
     from vortex.model.generation import generate
 
