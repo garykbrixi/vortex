@@ -67,10 +67,10 @@ def detect_force_prompt_threshold():
         ret = 8192
     elif mem_gb > 120: # e.g. h200-x1
         ret = 4096
-    elif gpus >= 2 and mem_gb > 60: # h100-x1 OOMed with 512, x2 succeeded
+    elif gpus >= 2 and mem_gb > 60: # e.g. h100-x2
         ret = 512
-    else: # l40-x2 OOMed with 512, so restrict to 256
-        ret = 256
+    else: # e.g. l40-x2
+        ret = 128
     log.info(f"Will use force_prompt_threshold={ret}, {gpus=} {mem_gb=}")
     return ret
 
