@@ -145,6 +145,7 @@ def run_generation(
             top_p=top_p,
             temperature=temperature,
             cached_generation=should_use_cached_generation(),
+            force_prompt_threshold=int(getenv("NIM_EVO2_FORCE_PROMPT_THRESHOLD", 500)),
             verbose=2,
             token_callback=token_callback,
             device=device,
