@@ -54,6 +54,24 @@ def should_use_cached_generation():
     log.info(f"Will not use cached generation, {mem_gb=}")
     return False
 
+@lru_cache
+def detect_force_prompt_threshold():
+    env = getenv("NIM_EVO2_FORCE_PROMPT_THRESHOLD")
+    if env is not None:
+        log.info(f"Will use force_prompt_threshold from env variable: {env=}")
+        return int(env)
+
+    mem_gb = torch.cuda.get_device_properties(0).total_memory // 1024 // 1024 // 1024
+    gpus = torch.cuda.device_count()
+    if mem_gb > 120: # h200-x2 verified, h200-x1 needs confirmation
+        ret = 8192
+    elif gpus > 2 and mem_gb > 60: # h100-x1 OOMed with 512, x2 succeeded
+        ret = 512
+    else: # l40-x2 OOMed with 512, so restrict to 256
+        ret = 256
+    log.info(f"Will use force_prompt_threshold={ret}, {gpus=} {mem_gb=}")
+    return ret
+
 @lru_cache(maxsize=1)
 def get_model(*,
     config_path,
@@ -145,7 +163,7 @@ def run_generation(
             top_p=top_p,
             temperature=temperature,
             cached_generation=should_use_cached_generation(),
-            force_prompt_threshold=int(getenv("NIM_EVO2_FORCE_PROMPT_THRESHOLD", 500)),
+            force_prompt_threshold=detect_force_prompt_threshold(),
             verbose=2,
             token_callback=token_callback,
             device=device,
