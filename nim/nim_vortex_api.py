@@ -63,9 +63,11 @@ def detect_force_prompt_threshold():
 
     mem_gb = torch.cuda.get_device_properties(0).total_memory // 1024 // 1024 // 1024
     gpus = torch.cuda.device_count()
-    if mem_gb > 120: # h200-x2 verified, h200-x1 needs confirmation
+    if gpus >= 2 and mem_gb > 120: # e.g. h200-x2
         ret = 8192
-    elif gpus > 2 and mem_gb > 60: # h100-x1 OOMed with 512, x2 succeeded
+    elif mem_gb > 120: # e.g. h200-x1
+        ret = 4096
+    elif gpus >= 2 and mem_gb > 60: # h100-x1 OOMed with 512, x2 succeeded
         ret = 512
     else: # l40-x2 OOMed with 512, so restrict to 256
         ret = 256
