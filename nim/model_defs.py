@@ -69,6 +69,12 @@ class GenerateInputs(BaseModel):
             model's decision-making at each step of text generation.
         '''),
     )
+    enable_elapsed_ms_per_token: bool = Field(False,
+        title='Enable Per-Token Elapsed Time Reporting',
+        description=c('''A boolean flag that, when set to True, enables the
+            reporting of per-token timing statistics. Used for benchmarking.
+        '''),
+    )
 
 
 class GenerateOutputs(BaseModel):
@@ -98,6 +104,12 @@ class GenerateOutputs(BaseModel):
     elapsed_ms: int = Field(
         title='Elapsed milliseconds',
         description='Elapsed milliseconds on server side',
+    )
+    elapsed_ms_per_token: list[int] | None = Field(None,
+        title='Elapsed milliseconds for each generated token',
+        description=c('''Elapsed milliseconds on server side for each generated
+            token.
+        '''),
     )
 
 

@@ -126,6 +126,7 @@ class GenerationOutput:
     sequence: str
     logits: list[float]
     sampled_probs: list[float]
+    elapsed_ms_per_token: list[int]
 
 def run_generation(
     input_string,
@@ -150,10 +151,16 @@ def run_generation(
     print(f"Generation Prompt: {input_string}")
 
     from time import monotonic
-    deadline = monotonic() + timeout_s
+    elapsed_ms_per_token = []
+    t0 = monotonic()
+    deadline = t0 + timeout_s
     def token_callback(i):
-        if monotonic() > deadline:
-            raise TimeoutError(f"Timed out on {i}th token out of {num_tokens} requested. Allowed to run for {timeout_s} seconds.")
+        now = monotonic()
+        if now > deadline:
+            raise TimeoutError(f"Timed out on {i}th token. Allowed to run for {timeout_s} seconds. {len(input_string)=} {num_tokens=}")
+        nonlocal t0
+        elapsed_ms_per_token.append(int((now - t0)*1000))
+        t0 = now
 
     with torch.inference_mode():
         ret = generate(
@@ -174,6 +181,7 @@ def run_generation(
             sequence=ret.sequences[0],
             logits=ret.logits[0][0].tolist(),
             sampled_probs=to_sampled_probs(ret.sequences[0], ret.logits[0][0]),
+            elapsed_ms_per_token=elapsed_ms_per_token,
         )
 
 def test_vortex_generation():
