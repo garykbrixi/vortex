@@ -18,9 +18,8 @@ class GenerateInputs(BaseModel):
         title='Input DNA Sequence',
         description=c('''A string containing DNA sequence data.'''),
         min_length=1,
-        max_length=8192, # TODO: check
     )
-    num_tokens: int | None = Field(100, ge=1, le=8192,
+    num_tokens: int | None = Field(100, ge=1,
         title='Number of tokens to generate',
         description=c('''An integer that controls number of tokens that will
             be generated.
