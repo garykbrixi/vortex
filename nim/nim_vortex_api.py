@@ -29,6 +29,18 @@ def bool_env(env, default="", *, return_optional=False):
         return None
     return getenv(env, str(default)).lower() in ["y", "yes", "1", "t", "true"]
 
+def set_random_seed(random_seed: int | None = None):
+    if random_seed is None:
+        return
+
+    import random
+    import torch
+    import numpy
+
+    torch.manual_seed(random_seed)
+    numpy.random.seed(random_seed)
+    random.seed(random_seed)
+
 @lru_cache
 def is_fp8_supported():
     from transformer_engine.pytorch.fp8 import check_fp8_support
@@ -139,6 +151,7 @@ def run_generation(
     dry_run=True,
     checkpoint_path=None,
     timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 2 * 60 * 60)),
+    random_seed=None,
 ) -> GenerationOutput:
     from vortex.model.generation import generate
 
@@ -161,6 +174,8 @@ def run_generation(
         nonlocal t0
         elapsed_ms_per_token.append(int((now - t0)*1000))
         t0 = now
+
+    set_random_seed(random_seed)
 
     with torch.inference_mode():
         ret = generate(

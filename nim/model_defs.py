@@ -51,6 +51,19 @@ class GenerateInputs(BaseModel):
             sampling.
         '''),
     )
+    random_seed: int | None = Field(None,
+        title='Random Seed',
+        description=("Evo2 is a generative model, its function is "
+                     "to generate novel and diverse DNA sequences. Setting "
+                     "random seed allows to turn Evo2 into a deterministic "
+                     "model, where an input DNA and a fixed seed "
+                     "would always produce the same output. This argument is "
+                     "useful for development purposes, but otherwise should "
+                     "be unset."
+        ),
+        numpy_dtype="int64",
+        triton_shape=(1,)
+    )
     enable_logits: bool = Field(False,
         title='Enable Logits Reporting',
         description=c('''A boolean that if set, enables logits reporting in
