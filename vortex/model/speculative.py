@@ -158,7 +158,7 @@ class SpeculativeNGramGenerator:
             #         inference_params_dict_out["mha"].seqlen_offset += 1
             #         inference_params_dict_out["hcl"].seqlen_offset += 1
             #         inference_params_dict_out["hcm"].seqlen_offset += 1
-            #         nference_params_dict_out["hcs"].seqlen_offset += 1
+            #         inference_params_dict_out["hcs"].seqlen_offset += 1
             if cached_generation:
                 raise NotImplementedError("Cached generation + speculative decoding not yet supported.")
 
@@ -207,6 +207,8 @@ class SpeculativeNGramGenerator:
             x = torch.cat([x, target_tokens[:, n_matches:]], dim=1)
 
             i += n_matches
+
+            # TODO: confirm EOS criteria
         
         if verbose:
             kwargs = {}
