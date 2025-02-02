@@ -100,6 +100,8 @@ class SpeculativeNGramGenerator:
         tot_length = prompt_len + num_tokens
         batch_size = x.shape[0]
 
+        assert batch_size == 1, "Batch size must be 1"
+
         # initialize final output
         generation = torch.empty(
             x.shape[0],
@@ -139,24 +141,26 @@ class SpeculativeNGramGenerator:
         i = 0
 
         while i < int(num_tokens):
-            post_prefill = cached_generation and i > 0
+            # post_prefill = cached_generation and i > 0
 
-            if post_prefill:
-                # if using cached generation and is not the first token, we only need the last token
-                x = x[:, -1:]
-                seqlen_offset = inference_params_dict_out["mha"].seqlen_offset
+            # if post_prefill:
+            #     # if using cached generation and is not the first token, we only need the last token
+            #     x = x[:, -1:]
+            #     seqlen_offset = inference_params_dict_out["mha"].seqlen_offset
 
-                if seqlen_offset == 0:
-                    seqlen_offset = input.shape[-1]
-                    inference_params_dict_out["mha"].seqlen_offset = seqlen_offset
-                    inference_params_dict_out["hcl"].seqlen_offset = seqlen_offset
-                    inference_params_dict_out["hcm"].seqlen_offset = seqlen_offset
-                    inference_params_dict_out["hcs"].seqlen_offset = seqlen_offset
-                else:
-                    inference_params_dict_out["mha"].seqlen_offset += 1
-                    inference_params_dict_out["hcl"].seqlen_offset += 1
-                    inference_params_dict_out["hcm"].seqlen_offset += 1
-                    inference_params_dict_out["hcs"].seqlen_offset += 1
+            #     if seqlen_offset == 0:
+            #         seqlen_offset = input.shape[-1]
+            #         inference_params_dict_out["mha"].seqlen_offset = seqlen_offset
+            #         inference_params_dict_out["hcl"].seqlen_offset = seqlen_offset
+            #         inference_params_dict_out["hcm"].seqlen_offset = seqlen_offset
+            #         inference_params_dict_out["hcs"].seqlen_offset = seqlen_offset
+            #     else:
+            #         inference_params_dict_out["mha"].seqlen_offset += 1
+            #         inference_params_dict_out["hcl"].seqlen_offset += 1
+            #         inference_params_dict_out["hcm"].seqlen_offset += 1
+            #         nference_params_dict_out["hcs"].seqlen_offset += 1
+            if cached_generation:
+                raise NotImplementedError("Cached generation + speculative decoding not yet supported.")
 
             # get candidate tokens by ngram matching
             draft_tokens = find_candidate_pred_tokens(x, self.max_ngram_size, self.num_pred_tokens, verbose=verbose)
@@ -164,7 +168,7 @@ class SpeculativeNGramGenerator:
             # follows apoorvumang/prompt-lookup-decoding and places a pad token if no candidate tokens are found
             if len(draft_tokens) == 0:
                 draft_tokens = torch.tensor([[self.tokenizer.pad_idx]], dtype=torch.long, device=x.device)
-                
+            
             # NOTE: this only works for batch size 1
             draft_tokens = draft_tokens.unsqueeze(0).to(device)  # (1, num_pred_tokens)
             draft_size = draft_tokens.size(1)
@@ -178,19 +182,46 @@ class SpeculativeNGramGenerator:
                 inference_params_dict=inference_params_dict_out
             )
 
-            # modify logits for the draft tokens
-            if self.top_k > 0:
-                target_logits, target_indices = modify_logits(target_logits, top_k=self.top_k, top_p=self.top_p, temperature=self.temperature)
-            else:
-                target_logits = modify_logits(target_logits, top_k=0, top_p=self.top_p, temperature=self.temperature)
-
             # excludes the input prompt if present
-            target_logits = target_logits[:, -draft_size:]
+            target_logits = target_logits[:, -draft_size - 1:, :]
 
             # sample from the modified logits
-            selected_tokens = target_logits.argmax(dim=-1)
-            candidate_new_tokens = draft_tokens[:, -self.num_pred_tokens:]
-            n_matches = ((~(candidate_new_tokens == selected_tokens[:, :-1])).cumsum(dim=-1) < 1).sum()
-            n_matches = min(n_matches, max_len - cur_len - 1)
+            target_tokens = target_logits.argmax(dim=-1)
+            draft_tokens[:, -draft_size:]
+            n_matches = ((~(draft_tokens[:, -draft_size:] == target_tokens[:, :-1])).cumsum(dim=-1) < 1).sum()
+            n_matches = min(n_matches, num_tokens - i)
             
-            import pdb;pdb.set_trace()
+            # if stop_at_eos and (generation[0, -2:] == eos_token_ids).all():
+            #     print_rank_0("Stopping generation at EOS")
+
+            # if print_generation and verbose and batch_size == 1:
+            #     print_rank_0(
+            #         f"{self.tokenizer.detokenize([new_idx.item()])}",
+            #         end=" ",
+            # )
+            
+            
+            # TODO: trim KV cache
+            scores[:, i: (i + n_matches), :] = target_logits[:, :n_matches, :]
+            generation[:, i: (i + n_matches)] = target_tokens[:, :n_matches]
+            x = torch.cat([x, target_tokens[:, n_matches:]], dim=1)
+
+            i += n_matches
+        
+        if verbose:
+            kwargs = {}
+            if not isinstance(self.tokenizer, CharLevelTokenizer):
+                kwargs["skip_special_tokens"] = skip_special_tokens
+            y = self.tokenizer.detokenize_batch(generation[:, : i + 1], **kwargs)
+
+            for until in self.untils:
+                if until in y:
+                    y = y.split(until)[0]
+                    break
+
+            print_rank_0(f"\nInput: {input_string}, Output: {y}")
+
+            mem_end = torch.cuda.memory_allocated(device=x.device) / 1e9
+            print_rank_0(f"Memory after generation: {mem_end} GB")
+
+        return generation[:, : i + 1], scores[:, : i + 1]
