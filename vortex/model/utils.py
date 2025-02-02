@@ -78,11 +78,12 @@ def load_checkpoint(model, checkpoint_path):
         return
     log.info(f"Loading {checkpoint_path}")
 
-    # We must allowlist BytesIO, as fp8-enabled checkpoints store this type
+    # We must allowlist some objects, as fp8-enabled checkpoints store this type
     # in Transformer Engine layers' _extra keys. If not, weights_only=True
     # will not be happy.
-    import io
-    torch.serialization.add_safe_globals([io.BytesIO])
+    from io import BytesIO
+    from codecs import encode
+    torch.serialization.add_safe_globals([BytesIO, encode])
 
     with torch.inference_mode():
         state = torch.load(
