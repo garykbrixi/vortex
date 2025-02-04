@@ -64,8 +64,8 @@
                         {
                             "title": "Synchronous requests",
                             "requestEjs": {
-                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2/forward}\n\nrequest='{\n \"sequence\": \"ATCG\",\n \"output_layers\": [\"embedding_layer\"]\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
-                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\nfrom base64 import decodebytes\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2/forward\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ATCG\",\n        \"output_layers\": [\"embedding_layer\"],\n    },\n)\nprint(r, \"Saving to data.npz:\\n\", r.text[:200], \"...\")\nPath(\"data.npz\").write_bytes(decodebytes(json.loads(r.text)[\"data\"].encode(\"ascii\")))\n"
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2-40b/forward}\n\nrequest='{\n \"sequence\": \"ATCG\",\n \"output_layers\": [\"embedding_layer\"]\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\nfrom base64 import decodebytes\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2-40b/forward\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ATCG\",\n        \"output_layers\": [\"embedding_layer\"],\n    },\n)\nprint(r, \"Saving to data.npz:\\n\", r.text[:200], \"...\")\nPath(\"data.npz\").write_bytes(decodebytes(json.loads(r.text)[\"data\"].encode(\"ascii\")))\n"
                             }
                         }
                     ]
@@ -117,8 +117,8 @@
                         {
                             "title": "Synchronous requests",
                             "requestEjs": {
-                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2-7b/generate}\n\nrequest='{\n \"sequence\": \"ACTGACTGACTGACTG\",\n \"num_tokens\": 8,\n \"top_k\": 1,\n \"enable_sampled_probs\": true\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
-                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2-7b/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ACTGACTGACTGACTG\",\n        \"num_tokens\": 8,\n        \"top_k\": 1,\n        \"enable_sampled_probs\": True,\n    },\n)\nprint(r, \"Saving to output.txt:\\n\", r.text[:200], \"...\")\nPath(\"output.txt\").write_text(json.loads(r.text)[\"sequence\"])\n"
+                                "curl": "#!/usr/bin/env bash\nset -e\n\nif [ \"$NVCF_RUN_KEY\" = \"\" ]; then read -p \"Paste Run Key: \" NVCF_RUN_KEY; fi\nURL=${URL:-https://health.api.nvidia.com/v1/biology/arc/evo2-40b/generate}\n\nrequest='{\n \"sequence\": \"ACTGACTGACTGACTG\",\n \"num_tokens\": 8,\n \"top_k\": 1,\n \"enable_sampled_probs\": true\n}'\ncurl -H 'Content-Type: application/json' \\\n     -H \"Authorization: Bearer $NVCF_RUN_KEY\" \\\n     -H \"nvcf-poll-seconds: 300\" \\\n     -d \"$request\" \"$URL\"\n",
+                                "python": "#!/usr/bin/env python3\nimport requests\nimport os\nimport json\nfrom pathlib import Path\n\nkey = os.getenv(\"NVCF_RUN_KEY\") or input(\"Paste the Run Key: \")\n\nr = requests.post(\n    url=os.getenv(\"URL\", \"https://health.api.nvidia.com/v1/biology/arc/evo2-40b/generate\"),\n    headers={\"Authorization\": f\"Bearer {key}\"},\n    json={\n        \"sequence\": \"ACTGACTGACTGACTG\",\n        \"num_tokens\": 8,\n        \"top_k\": 1,\n        \"enable_sampled_probs\": True,\n    },\n)\nprint(r, \"Saving to output.txt:\\n\", r.text[:200], \"...\")\nPath(\"output.txt\").write_text(json.loads(r.text)[\"sequence\"])\n"
                             }
                         }
                     ]
@@ -295,7 +295,6 @@
                 "properties": {
                     "sequence": {
                         "type": "string",
-                        "maxLength": 8192,
                         "minLength": 1,
                         "title": "Input DNA Sequence",
                         "description": "A string containing DNA sequence data."
@@ -304,7 +303,6 @@
                         "anyOf": [
                             {
                                 "type": "integer",
-                                "maximum": 8192.0,
                                 "minimum": 1.0
                             },
                             {
@@ -360,6 +358,22 @@
                         "description": "A float between 0 and 1 that enables nucleus sampling. It filters the smallest set of tokens whose cumulative probability exceeds the top_p threshold. Setting this to 0.0 disables top-p sampling.",
                         "default": 1.0
                     },
+                    "random_seed": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Random Seed",
+                        "description": "Evo2 is a generative model, its function is to generate novel and diverse DNA sequences. Setting random seed allows to turn Evo2 into a deterministic model, where an input DNA and a fixed seed would always produce the same output. This argument is useful for development purposes, but otherwise should be unset.",
+                        "numpy_dtype": "int64",
+                        "triton_shape": [
+                            1
+                        ]
+                    },
                     "enable_logits": {
                         "type": "boolean",
                         "title": "Enable Logits Reporting",
@@ -370,6 +384,12 @@
                         "type": "boolean",
                         "title": "Enable Sampled Token Probabilities Reporting",
                         "description": "A boolean flag that, when set to True, enables the reporting of sampled token probabilities. When enabled, this feature generates a list of probability values (ranging from 0 to 1) corresponding to each token in the output sequence. These probabilities represent the model's confidence in selecting each token during the generation process. The resulting list has the same length as the output sequence, providing insight into the model's decision-making at each step of text generation.",
+                        "default": false
+                    },
+                    "enable_elapsed_ms_per_token": {
+                        "type": "boolean",
+                        "title": "Enable Per-Token Elapsed Time Reporting",
+                        "description": "A boolean flag that, when set to True, enables the reporting of per-token timing statistics. Used for benchmarking.",
                         "default": false
                     }
                 },
@@ -424,6 +444,21 @@
                         "type": "integer",
                         "title": "Elapsed milliseconds",
                         "description": "Elapsed milliseconds on server side"
+                    },
+                    "elapsed_ms_per_token": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "integer"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Elapsed milliseconds for each generated token",
+                        "description": "Elapsed milliseconds on server side for each generated token."
                     }
                 },
                 "additionalProperties": false,

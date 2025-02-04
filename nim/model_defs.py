@@ -18,9 +18,8 @@ class GenerateInputs(BaseModel):
         title='Input DNA Sequence',
         description=c('''A string containing DNA sequence data.'''),
         min_length=1,
-        max_length=8192, # TODO: check
     )
-    num_tokens: int | None = Field(100, ge=1, le=8192,
+    num_tokens: int | None = Field(100, ge=1,
         title='Number of tokens to generate',
         description=c('''An integer that controls number of tokens that will
             be generated.
@@ -51,6 +50,19 @@ class GenerateInputs(BaseModel):
             sampling.
         '''),
     )
+    random_seed: int | None = Field(None,
+        title='Random Seed',
+        description=("Evo2 is a generative model, its function is "
+                     "to generate novel and diverse DNA sequences. Setting "
+                     "random seed allows to turn Evo2 into a deterministic "
+                     "model, where an input DNA and a fixed seed "
+                     "would always produce the same output. This argument is "
+                     "useful for development purposes, but otherwise should "
+                     "be unset."
+        ),
+        numpy_dtype="int64",
+        triton_shape=(1,)
+    )
     enable_logits: bool = Field(False,
         title='Enable Logits Reporting',
         description=c('''A boolean that if set, enables logits reporting in
@@ -67,6 +79,12 @@ class GenerateInputs(BaseModel):
             each token during the generation process. The resulting list has
             the same length as the output sequence, providing insight into the
             model's decision-making at each step of text generation.
+        '''),
+    )
+    enable_elapsed_ms_per_token: bool = Field(False,
+        title='Enable Per-Token Elapsed Time Reporting',
+        description=c('''A boolean flag that, when set to True, enables the
+            reporting of per-token timing statistics. Used for benchmarking.
         '''),
     )
 
@@ -98,6 +116,12 @@ class GenerateOutputs(BaseModel):
     elapsed_ms: int = Field(
         title='Elapsed milliseconds',
         description='Elapsed milliseconds on server side',
+    )
+    elapsed_ms_per_token: list[int] | None = Field(None,
+        title='Elapsed milliseconds for each generated token',
+        description=c('''Elapsed milliseconds on server side for each generated
+            token.
+        '''),
     )
 
 

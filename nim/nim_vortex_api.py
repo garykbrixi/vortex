@@ -29,6 +29,18 @@ def bool_env(env, default="", *, return_optional=False):
         return None
     return getenv(env, str(default)).lower() in ["y", "yes", "1", "t", "true"]
 
+def set_random_seed(random_seed: int | None = None):
+    if random_seed is None:
+        return
+
+    import random
+    import torch
+    import numpy
+
+    torch.manual_seed(random_seed)
+    numpy.random.seed(random_seed)
+    random.seed(random_seed)
+
 @lru_cache
 def is_fp8_supported():
     from transformer_engine.pytorch.fp8 import check_fp8_support
@@ -54,6 +66,26 @@ def should_use_cached_generation():
     log.info(f"Will not use cached generation, {mem_gb=}")
     return False
 
+@lru_cache
+def detect_force_prompt_threshold():
+    env = getenv("NIM_EVO2_FORCE_PROMPT_THRESHOLD")
+    if env is not None:
+        log.info(f"Will use force_prompt_threshold from env variable: {env=}")
+        return int(env)
+
+    mem_gb = torch.cuda.get_device_properties(0).total_memory // 1024 // 1024 // 1024
+    gpus = torch.cuda.device_count()
+    if gpus >= 2 and mem_gb > 120: # e.g. h200-x2
+        ret = 8192
+    elif mem_gb > 120: # e.g. h200-x1
+        ret = 4096
+    elif gpus >= 2 and mem_gb > 60: # e.g. h100-x2
+        ret = 512
+    else: # e.g. l40-x2
+        ret = 128
+    log.info(f"Will use force_prompt_threshold={ret}, {gpus=} {mem_gb=}")
+    return ret
+
 @lru_cache(maxsize=1)
 def get_model(*,
     config_path,
@@ -68,7 +100,7 @@ def get_model(*,
 
     from vortex.model.model import StripedHyena
     from vortex.model.tokenizer import HFAutoTokenizer, CharLevelTokenizer
-    from vortex.model.utils import dotdict
+    from vortex.model.utils import dotdict, load_checkpoint
 
     torch.set_printoptions(precision=2, threshold=5)
 
@@ -90,20 +122,12 @@ def get_model(*,
     else:
         tokenizer = HFAutoTokenizer(config.vocab_file)
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    with torch.device(device):
-        m = StripedHyena(config)
+    m = StripedHyena(config)
 
-    if not dry_run:
-        if checkpoint_path:
-            state_dict = torch.load(checkpoint_path, map_location=device)
-            # inv_freq are instantiated as parameters
-            m.custom_load_state_dict(state_dict, strict=False)
-
-    m.to_bfloat16_except_pr_lc()
+    load_checkpoint(m, checkpoint_path)
 
     print(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
-    return m, tokenizer, device
+    return m, tokenizer, "cuda:0"
 
 def to_sampled_probs(sequence, logits) -> list[float]:
     probs = torch.softmax(logits, dim=-1)
@@ -114,6 +138,7 @@ class GenerationOutput:
     sequence: str
     logits: list[float]
     sampled_probs: list[float]
+    elapsed_ms_per_token: list[int]
 
 def run_generation(
     input_string,
@@ -125,7 +150,8 @@ def run_generation(
     config_path="shc-evo2-7b-8k-2T-v2.yml",
     dry_run=True,
     checkpoint_path=None,
-    timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 600)),
+    timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 2 * 60 * 60)),
+    random_seed=None,
 ) -> GenerationOutput:
     from vortex.model.generation import generate
 
@@ -138,10 +164,18 @@ def run_generation(
     print(f"Generation Prompt: {input_string}")
 
     from time import monotonic
-    deadline = monotonic() + timeout_s
+    elapsed_ms_per_token = []
+    t0 = monotonic()
+    deadline = t0 + timeout_s
     def token_callback(i):
-        if monotonic() > deadline:
-            raise TimeoutError(f"Timed out on {i}th token out of {num_tokens} requested. Allowed to run for {timeout_s} seconds.")
+        now = monotonic()
+        if now > deadline:
+            raise TimeoutError(f"Timed out on {i}th token. Allowed to run for {timeout_s} seconds. {len(input_string)=} {num_tokens=}")
+        nonlocal t0
+        elapsed_ms_per_token.append(int((now - t0)*1000))
+        t0 = now
+
+    set_random_seed(random_seed)
 
     with torch.inference_mode():
         ret = generate(
@@ -153,6 +187,7 @@ def run_generation(
             top_p=top_p,
             temperature=temperature,
             cached_generation=should_use_cached_generation(),
+            force_prompt_threshold=detect_force_prompt_threshold(),
             verbose=2,
             token_callback=token_callback,
             device=device,
@@ -161,6 +196,7 @@ def run_generation(
             sequence=ret.sequences[0],
             logits=ret.logits[0][0].tolist(),
             sampled_probs=to_sampled_probs(ret.sequences[0], ret.logits[0][0]),
+            elapsed_ms_per_token=elapsed_ms_per_token,
         )
 
 def test_vortex_generation():
