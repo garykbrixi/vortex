@@ -146,7 +146,6 @@ class ForwardInputs(BaseModel):
         title='Input DNA sequence',
         description=c('''A string containing DNA sequence data.'''),
         min_length=1,
-        max_length=8192, # TODO: check
     )
     output_layers: list[constr(min_length=1)] = Field(...,
         title='Output capture layers.',

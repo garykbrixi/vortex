@@ -153,6 +153,14 @@ def run_generation(
     timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 2 * 60 * 60)),
     random_seed=None,
 ) -> GenerationOutput:
+    input_string_limit = int(getenv("NIM_EVO2_SEQUENCE_LEN_LIMIT", 8192*2))
+    if len(input_string) > input_string_limit:
+        raise ValueError(
+            f"Sequence length is limited to {input_string_limit}. You can "
+            f"change the limit by setting NIM_EVO2_SEQUENCE_LEN_LIMIT "
+            f"envrionment variable."
+        )
+
     from vortex.model.generation import generate
 
     m, tokenizer, device = get_model(
@@ -170,7 +178,11 @@ def run_generation(
     def token_callback(i):
         now = monotonic()
         if now > deadline:
-            raise TimeoutError(f"Timed out on {i}th token. Allowed to run for {timeout_s} seconds. {len(input_string)=} {num_tokens=}")
+            raise TimeoutError(
+                f"Timed out on {i}th token. Allowed to run for {timeout_s} seconds. "
+                f"You can change the limit by setting NIM_EVO2_TIMEOUT_S environment variable. "
+                f"{len(input_string)=} {num_tokens=}"
+            )
         nonlocal t0
         elapsed_ms_per_token.append(int((now - t0)*1000))
         t0 = now
