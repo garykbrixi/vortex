@@ -126,7 +126,7 @@ def get_model(*,
 
     load_checkpoint(m, checkpoint_path)
 
-    print(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
+    log.info(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
     return m, tokenizer, "cuda:0"
 
 def to_sampled_probs(sequence, logits) -> list[float]:
@@ -169,7 +169,7 @@ def run_generation(
         checkpoint_path=checkpoint_path,
     )
 
-    print(f"Generation Prompt: {input_string}")
+    log.info(f"Generation Prompt: {len(input_string)=} {num_tokens=}")
 
     from time import monotonic
     elapsed_ms_per_token = []
@@ -236,7 +236,7 @@ def run_forward(
         checkpoint_path=checkpoint_path,
     )
 
-    print(f"Forward Prompt: {input_string}")
+    log.info(f"Forward Prompt: {len(input_string)=}")
 
     store = {}
     hooks = []
