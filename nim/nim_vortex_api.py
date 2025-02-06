@@ -133,6 +133,16 @@ def to_sampled_probs(sequence, logits) -> list[float]:
     probs = torch.softmax(logits, dim=-1)
     return [probs[pos][ord(c)].item() for pos, c in enumerate(sequence)]
 
+def check_seq_limit(seq):
+    var = "NIM_EVO2_SEQUENCE_LENGTH_LIMIT"
+    limit = int(getenv(var, 8192*2))
+    if len(seq) <= limit:
+        return
+    raise ValueError(
+        f"Sequence length ({len(seq)}) is limited to {limit}. You can change "
+        f"the limit by setting {var} environment variable."
+    )
+
 @dataclass(kw_only=True)
 class GenerationOutput:
     sequence: str
@@ -153,13 +163,8 @@ def run_generation(
     timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 2 * 60 * 60)),
     random_seed=None,
 ) -> GenerationOutput:
-    input_string_limit = int(getenv("NIM_EVO2_SEQUENCE_LEN_LIMIT", 8192*2))
-    if len(input_string) > input_string_limit:
-        raise ValueError(
-            f"Sequence length is limited to {input_string_limit}. You can "
-            f"change the limit by setting NIM_EVO2_SEQUENCE_LEN_LIMIT "
-            f"envrionment variable."
-        )
+    log.info(f"Generation Prompt: {len(input_string)=} {num_tokens=}")
+    check_seq_limit(input_string)
 
     from vortex.model.generation import generate
 
@@ -168,8 +173,6 @@ def run_generation(
         dry_run=dry_run,
         checkpoint_path=checkpoint_path,
     )
-
-    log.info(f"Generation Prompt: {len(input_string)=} {num_tokens=}")
 
     from time import monotonic
     elapsed_ms_per_token = []
@@ -230,13 +233,14 @@ def run_forward(
     dry_run=True,
     checkpoint_path=None,
 ):
+    log.info(f"Forward Prompt: {len(input_string)=}")
+    check_seq_limit(input_string)
+
     m, tokenizer, device = get_model(
         config_path=config_path,
         dry_run=dry_run,
         checkpoint_path=checkpoint_path,
     )
-
-    log.info(f"Forward Prompt: {len(input_string)=}")
 
     store = {}
     hooks = []
