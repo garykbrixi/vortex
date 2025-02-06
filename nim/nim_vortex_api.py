@@ -126,12 +126,22 @@ def get_model(*,
 
     load_checkpoint(m, checkpoint_path)
 
-    print(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
+    log.info(f"Number of parameters: {sum(p.numel() for p in m.parameters())}")
     return m, tokenizer, "cuda:0"
 
 def to_sampled_probs(sequence, logits) -> list[float]:
     probs = torch.softmax(logits, dim=-1)
     return [probs[pos][ord(c)].item() for pos, c in enumerate(sequence)]
+
+def check_seq_limit(seq):
+    var = "NIM_EVO2_SEQUENCE_LENGTH_LIMIT"
+    limit = int(getenv(var, 8192*2))
+    if len(seq) <= limit:
+        return
+    raise ValueError(
+        f"Sequence length ({len(seq)}) is limited to {limit}. You can change "
+        f"the limit by setting {var} environment variable."
+    )
 
 @dataclass(kw_only=True)
 class GenerationOutput:
@@ -153,6 +163,9 @@ def run_generation(
     timeout_s=int(getenv("NIM_EVO2_TIMEOUT_S", 2 * 60 * 60)),
     random_seed=None,
 ) -> GenerationOutput:
+    log.info(f"Generation Prompt: {len(input_string)=} {num_tokens=}")
+    check_seq_limit(input_string)
+
     from vortex.model.generation import generate
 
     m, tokenizer, device = get_model(
@@ -161,8 +174,6 @@ def run_generation(
         checkpoint_path=checkpoint_path,
     )
 
-    print(f"Generation Prompt: {input_string}")
-
     from time import monotonic
     elapsed_ms_per_token = []
     t0 = monotonic()
@@ -170,7 +181,11 @@ def run_generation(
     def token_callback(i):
         now = monotonic()
         if now > deadline:
-            raise TimeoutError(f"Timed out on {i}th token. Allowed to run for {timeout_s} seconds. {len(input_string)=} {num_tokens=}")
+            raise TimeoutError(
+                f"Timed out on {i}th token. Allowed to run for {timeout_s} seconds. "
+                f"You can change the limit by setting NIM_EVO2_TIMEOUT_S environment variable. "
+                f"{len(input_string)=} {num_tokens=}"
+            )
         nonlocal t0
         elapsed_ms_per_token.append(int((now - t0)*1000))
         t0 = now
@@ -218,13 +233,14 @@ def run_forward(
     dry_run=True,
     checkpoint_path=None,
 ):
+    log.info(f"Forward Prompt: {len(input_string)=}")
+    check_seq_limit(input_string)
+
     m, tokenizer, device = get_model(
         config_path=config_path,
         dry_run=dry_run,
         checkpoint_path=checkpoint_path,
     )
-
-    print(f"Forward Prompt: {input_string}")
 
     store = {}
     hooks = []

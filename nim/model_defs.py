@@ -146,7 +146,6 @@ class ForwardInputs(BaseModel):
         title='Input DNA sequence',
         description=c('''A string containing DNA sequence data.'''),
         min_length=1,
-        max_length=8192, # TODO: check
     )
     output_layers: list[constr(min_length=1)] = Field(...,
         title='Output capture layers.',
@@ -189,8 +188,8 @@ class ForwardRoute(RouteDefinition):
 class Metadata(AppMetadata):
     MODEL_NAME_PRETTY: str = 'Evo2'
     API_SEMVER: str = '1.0.0'
-    MODEL_LICENSE: str = 'Apache License Version 2.0' # TODO: double check
-    MODEL_LICENSE_URL: str = 'https://github.com/Zymrael/vortex/blob/b8bf0e53711a6dbf57c9351fe9fdc461e1399028/LICENSE' # TODO: need public URL
+    MODEL_LICENSE: str = 'Apache License Version 2.0'
+    MODEL_LICENSE_URL: str = 'https://www.apache.org/licenses/LICENSE-2.0'
 
 
 route_definitions = [GenerateRoute, ForwardRoute]

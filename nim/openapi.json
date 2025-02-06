@@ -10,7 +10,7 @@
         },
         "license": {
             "name": "Apache License Version 2.0",
-            "url": "https://github.com/Zymrael/vortex/blob/b8bf0e53711a6dbf57c9351fe9fdc461e1399028/LICENSE"
+            "url": "https://www.apache.org/licenses/LICENSE-2.0"
         },
         "version": "1.0.0"
     },
@@ -244,7 +244,6 @@
                 "properties": {
                     "sequence": {
                         "type": "string",
-                        "maxLength": 8192,
                         "minLength": 1,
                         "title": "Input DNA sequence",
                         "description": "A string containing DNA sequence data."
