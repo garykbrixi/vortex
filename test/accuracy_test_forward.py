@@ -23,11 +23,15 @@ def test_dna_model(model, device="cuda:0"):
     """
     # Test sequence: E. coli BD1 16S ribosomal RNA gene, a conserved gene
     seq = "AAATTGAAGAGTTTGATCATGGCTCAGATTGAACGCTGGCGGCAGGCCTAACACATGCAAGTCGAACGGTAACAGGAAGAAGCTTGCTCTTTGCTGACGAGTGGCGGACGGGTGAGTAATGTCTGGGAAACTGCCTGATGGAGGGGGATAACTACTGGAAACGGTAGCTAATACCGCATAACGTCGCAAGACCAAAGAGGGGGACCTTCGGGCCTCTTGCCATCGGATGTGCCCAGATGGGATTAGCTAGTAGGTGGGGTAACGGCTCACCTAGGCGACGATCCCTAGCTGGTCTGAGAGGATGACCAGCCACACTGGAACTGAGACACGGTCCAGACTCCTACGGGAGGCAGCAGTGGGGAATATTGCACAATGGGCGCAAGCCTGATGCAGCCATGCCGCGTGTATGAAGAAGGCCTTCGGGTTGTAAAGTACTTTCAGCGGGGAGGAAGGGAGTAAAGTTAATACCTTTGCTCATTGACGTTACCCGCAGAAGAAGCACCGGCTAACTCCGTGCCAGCAGCCGCGGTAATACGGAGGGTGCAAGCGTTAATCGGAATTACTGGGCGTAAAGCGCACGCAGGCGGTTTGTTAAGTCA"
-    
-    input_ids = torch.tensor(
-        tokenizer.tokenize(seq),
-        dtype=torch.int,
-    ).to(device).unsqueeze(0)
+
+    input_ids = (
+        torch.tensor(
+            tokenizer.tokenize(seq),
+            dtype=torch.int,
+        )
+        .to(device)
+        .unsqueeze(0)
+    )
 
     with torch.no_grad():
         output1, _ = model.forward(input_ids)
@@ -105,7 +109,9 @@ if __name__ == "__main__":
         m = StripedHyena(config).to(torch.float32)
 
     with torch.inference_mode():
-        m.custom_load_state_dict(torch.load(args.checkpoint_path, map_location=device), strict=False)
+        m.custom_load_state_dict(
+            torch.load(args.checkpoint_path, map_location=device), strict=False
+        )
 
     m = m.to(device)
     m.to_bfloat16_except_pr_lc()
