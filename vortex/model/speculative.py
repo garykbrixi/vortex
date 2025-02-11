@@ -28,7 +28,7 @@ class MetricsCallback:
         print(f"How many times did we find a matching n-gram? {self.num_ngram_matches}")
         print(f"How many draft tokens were returned? {self.draft_token_length}")
         print(f"How many token match positions did we get? {self.num_matches}")
-        print(f"What was the token accept rate? {self.num_ngram_matches / self.draft_token_length:.2f}")
+        print(f"What was the token accept rate? {self.num_matches / self.draft_token_length:.2f}")
 
 
 @torch.no_grad()
