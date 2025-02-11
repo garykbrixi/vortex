@@ -10,7 +10,7 @@ import argparse
 import torch
 import yaml
 
-from vortex.model.speculative import SpeculativeNGramGenerator
+from vortex.model.speculative import SpeculativeNGramGenerator, MetricsCallback
 from vortex.model.model import StripedHyena
 from vortex.model.tokenizer import HFAutoTokenizer, CharLevelTokenizer
 from vortex.model.utils import dotdict, print_rank_0, load_checkpoint
@@ -47,6 +47,7 @@ if __name__ == "__main__":
         "--dry_run", action="store_true", help="Dry run the generation."
     )
     parser.add_argument("--debug", action="store_true", help="Debug mode.")
+    parser.add_argument("--metrics_callback", action="store_true", help="Metrics callback.")
 
     torch.set_printoptions(precision=4, threshold=5)
 
@@ -77,6 +78,8 @@ if __name__ == "__main__":
         input_string = f.read()
     print_rank_0(f"Prompt: {input_string}", end="\n\n")
 
+    metrics_callback = MetricsCallback() if args.metrics_callback else None
+
     with torch.inference_mode():
         g = SpeculativeNGramGenerator(
             m,
@@ -86,6 +89,7 @@ if __name__ == "__main__":
             temperature=args.temperature,
             max_ngram_size=args.max_ngram_size,
             num_pred_tokens=args.num_pred_tokens,
+            metrics_callback=metrics_callback,
         )
         g.generate(
             device=device,

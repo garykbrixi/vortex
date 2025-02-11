@@ -5,6 +5,32 @@ from vortex.model.tokenizer import CharLevelTokenizer
 from vortex.model.utils import print_rank_0
 
 
+class MetricsCallback:
+    def __init__(self):
+        self.num_ngram_matches = 0
+        self.draft_token_length = 0
+        self.num_matches = 0
+    
+    def update(self, num_ngram_matches=None, draft_token_length=None, num_matches=None):
+        if num_ngram_matches is not None:
+            self.num_ngram_matches += num_ngram_matches
+        if draft_token_length is not None:
+            self.draft_token_length += draft_token_length
+        if num_matches is not None:
+            self.num_matches += num_matches
+
+    def reset(self):
+        self.num_ngram_matches = 0
+        self.draft_token_length = 0
+        self.num_matches = 0
+    
+    def print_metrics(self):
+        print(f"How many times did we find a matching n-gram? {self.num_ngram_matches}")
+        print(f"How many draft tokens were returned? {self.draft_token_length}")
+        print(f"How many token match positions did we get? {self.num_matches}")
+        print(f"What was the token accept rate? {self.num_ngram_matches / self.draft_token_length:.2f}")
+
+
 @torch.no_grad()
 def find_candidate_pred_tokens(input_ids, max_ngram_size=3, num_pred_tokens=10, verbose=False):
     input_length = input_ids.size(1)
@@ -48,7 +74,7 @@ def find_candidate_pred_tokens(input_ids, max_ngram_size=3, num_pred_tokens=10, 
 
 
 class SpeculativeNGramGenerator:
-    def __init__(self, model, tokenizer, top_k=50, top_p=0.7, temperature=1, max_ngram_size=3, num_pred_tokens=10):
+    def __init__(self, model, tokenizer, top_k=50, top_p=0.7, temperature=1, max_ngram_size=3, num_pred_tokens=10, metrics_callback=None):
         self.model = model
         self.tokenizer = tokenizer
         self.top_k = top_k
@@ -57,6 +83,7 @@ class SpeculativeNGramGenerator:
         self.untils = ["\n\n"]
         self.max_ngram_size = max_ngram_size
         self.num_pred_tokens = num_pred_tokens
+        self.metrics_callback = metrics_callback
 
     def generate(
         self,
@@ -100,7 +127,7 @@ class SpeculativeNGramGenerator:
         tot_length = prompt_len + num_tokens
         batch_size = x.shape[0]
 
-        assert batch_size == 1, "Batch size must be 1"
+        assert batch_size == 1, "Batch size must be 1 for speculative decoding."
 
         # initialize final output
         generation = torch.empty(
@@ -142,31 +169,15 @@ class SpeculativeNGramGenerator:
 
         while i < int(num_tokens):
             # post_prefill = cached_generation and i > 0
-
-            # if post_prefill:
-            #     # if using cached generation and is not the first token, we only need the last token
-            #     x = x[:, -1:]
-            #     seqlen_offset = inference_params_dict_out["mha"].seqlen_offset
-
-            #     if seqlen_offset == 0:
-            #         seqlen_offset = input.shape[-1]
-            #         inference_params_dict_out["mha"].seqlen_offset = seqlen_offset
-            #         inference_params_dict_out["hcl"].seqlen_offset = seqlen_offset
-            #         inference_params_dict_out["hcm"].seqlen_offset = seqlen_offset
-            #         inference_params_dict_out["hcs"].seqlen_offset = seqlen_offset
-            #     else:
-            #         inference_params_dict_out["mha"].seqlen_offset += 1
-            #         inference_params_dict_out["hcl"].seqlen_offset += 1
-            #         inference_params_dict_out["hcm"].seqlen_offset += 1
-            #         inference_params_dict_out["hcs"].seqlen_offset += 1
             if cached_generation:
                 raise NotImplementedError("Cached generation + speculative decoding not yet supported.")
 
             # get candidate tokens by ngram matching
             draft_tokens = find_candidate_pred_tokens(x, self.max_ngram_size, self.num_pred_tokens, verbose=verbose)
+            found = len(draft_tokens) > 0
 
             # follows apoorvumang/prompt-lookup-decoding and places a pad token if no candidate tokens are found
-            if len(draft_tokens) == 0:
+            if not found:
                 draft_tokens = torch.tensor([[self.tokenizer.pad_idx]], dtype=torch.long, device=x.device)
             
             # NOTE: this only works for batch size 1
@@ -174,9 +185,6 @@ class SpeculativeNGramGenerator:
             draft_size = draft_tokens.size(1)
             draft_tokens = torch.cat([x, draft_tokens], dim=1)
 
-            # examine target model logits for the proposed ngram tokens
-            # if using cache, shape is (1, 1 + num_pred_tokens), otherwise (1, seqlen + num_pred_tokens)
-            # TODO: make sure this works when there are no draft tokens
             target_logits, inference_params_dict_out = self.model(
                 draft_tokens,
                 inference_params_dict=inference_params_dict_out
@@ -200,11 +208,17 @@ class SpeculativeNGramGenerator:
             #         end=" ",
             # )
             
-            
             # TODO: trim KV cache
             scores[:, i: (i + n_matches), :] = target_logits[:, :n_matches, :]
             generation[:, i: (i + n_matches)] = target_tokens[:, :n_matches]
             x = torch.cat([x, target_tokens[:, n_matches:]], dim=1)
+
+            if self.metrics_callback is not None:
+                self.metrics_callback.update(
+                    num_ngram_matches=int(found),
+                    draft_token_length=draft_size,
+                    num_matches=n_matches
+                )
 
             i += n_matches
 
@@ -225,5 +239,8 @@ class SpeculativeNGramGenerator:
 
             mem_end = torch.cuda.memory_allocated(device=x.device) / 1e9
             print_rank_0(f"Memory after generation: {mem_end} GB")
+
+            if self.metrics_callback is not None:
+                self.metrics_callback.print_metrics()
 
         return generation[:, : i + 1], scores[:, : i + 1]
