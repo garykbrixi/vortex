@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "torch>=2.5.1",
+    "torch>=2.6.0",
     "setuptools>=42",
     "wheel",
     "cmake",
@@ -19,7 +19,7 @@ license = { file = "LICENSE" }
 authors = [{ name = "Michael Poli" }]
 requires-python = ">=3.10"
 dependencies = [
-    "torch>=2.5.1",
+    "torch>=2.6.0",
     "transformer_engine[pytorch]==1.13.0",
     "numpy",
     "einops==0.8.0",

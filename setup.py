@@ -49,12 +49,24 @@ flash_attn_sources = [
     str(setup_dir / "vortex/ops/attn/csrc/flash_attn/src/flash_fwd_split_hdim128_bf16_sm80.cu"),
 ]
 
+if 'CUDNN_HOME' not in os.environ:
+    os.environ['CUDNN_HOME'] = '/usr/local/cuda'  # Default location
+
+# if 'CUDNN_HOME' not in os.environ:
+#     os.environ['CUDNN_HOME'] = '/usr/local/cuda'
+#     print(f"Setting CUDNN_HOME to {os.environ['CUDNN_HOME']}")
+
+# if 'CUDA_HOME' not in os.environ:
+#     os.environ['CUDA_HOME'] = '/usr/local/cuda'
+#     print(f"Setting CUDA_HOME to {os.environ['CUDA_HOME']}")
+
 include_dirs = [
     str(setup_dir / "vortex/ops/attn/csrc/flash_attn"),
     str(setup_dir / "vortex/ops/attn/csrc/flash_attn/src"),
     str(setup_dir / "vortex/ops/cutlass/include/"),
     str(setup_dir / "vortex/ops/cutlass/include/cute"),
     str(setup_dir / "vortex/ops/cutlass/include/cutlass"),
+    str(os.environ.get('CUDNN_HOME', '')),
 ]
 
 ext_modules = [
