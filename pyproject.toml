@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vtx"
-version = "1.0.3"
+version = "1.0.4"
 description = "Reference implementation of operators for deep signal processing architectures"
 readme = "README.md"
 license = { file = "LICENSE" }
