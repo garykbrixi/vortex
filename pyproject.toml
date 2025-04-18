@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vtx"
-version = "1.0.0"
+version = "1.0.2"
 description = "Reference implementation of operators for deep signal processing architectures"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -37,6 +37,3 @@ profile = "black"
 line_length = 119
 combine_as_imports = true
 combine_star = true
-
-[tool.setuptools]
-packages = ["vortex"]

@@ -83,7 +83,7 @@ ext_modules = [
 
 setup(
     name="vtx",
-    version="1.0.0",
+    version="1.0.2",
     description="Inference and utilities for convolutional multi-hybrid models",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
