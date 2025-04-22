@@ -19,7 +19,7 @@ def get_cuda_bare_metal_version(cuda_dir: Path):
     return raw_output, bare_metal_version
 
 if CUDA_HOME is None:
-    warnings.warn("CUDA_HOME is not set; NVCC may not be available.")
+    raise RuntimeError("CUDA_HOME is not set; NVCC may not be available. Please set it to the path of your CUDA installation and make sure PyTorch is built with CUDA support.")
 else:
     # Check that the installed CUDA is supported (>= 11.7)
     _, bare_metal_version = get_cuda_bare_metal_version(Path(CUDA_HOME))
@@ -52,14 +52,6 @@ flash_attn_sources = [
 if 'CUDNN_HOME' not in os.environ:
     os.environ['CUDNN_HOME'] = '/usr/local/cuda'  # Default location
 
-# if 'CUDNN_HOME' not in os.environ:
-#     os.environ['CUDNN_HOME'] = '/usr/local/cuda'
-#     print(f"Setting CUDNN_HOME to {os.environ['CUDNN_HOME']}")
-
-# if 'CUDA_HOME' not in os.environ:
-#     os.environ['CUDA_HOME'] = '/usr/local/cuda'
-#     print(f"Setting CUDA_HOME to {os.environ['CUDA_HOME']}")
-
 include_dirs = [
     str(setup_dir / "vortex/ops/attn/csrc/flash_attn"),
     str(setup_dir / "vortex/ops/attn/csrc/flash_attn/src"),
@@ -87,7 +79,7 @@ setup(
     description="Inference and utilities for convolutional multi-hybrid models",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
-    author="Michael Poli, Garyk Brixi",
+    author="Michael Poli",
     url="http://github.com/zymrael/vortex",
     license="Apache-2.0",
     packages=find_packages(include=['vortex', 'vortex.*']),

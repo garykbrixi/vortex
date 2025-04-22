@@ -15,7 +15,6 @@ name = "vtx"
 version = "1.0.4"
 description = "Reference implementation of operators for deep signal processing architectures"
 readme = "README.md"
-license = { file = "LICENSE" }
 authors = [{ name = "Michael Poli" }]
 requires-python = ">=3.10"
 dependencies = [
