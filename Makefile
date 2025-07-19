@@ -57,9 +57,9 @@ endif
 
 setup-full: submodules
 	pip install ninja cmake pybind11 numpy psutil
-	pip install -e . --config-settings=build-script=local_setup.py
-	pip install transformer_engine[pytorch]==1.13.0 --no-build-isolation 
-	cd vortex/ops/attn && MAX_JOBS=32 pip install -v -e  . --no-build-isolation
+	pip install transformer_engine[pytorch]==2.3.0 --no-build-isolation
+	pip install flash-attn==2.7.4.post1 --no-build-isolation
+	pip install -e .
 
 setup-vortex-ops: submodules _check_env_enabled _setup_missing_env
 	pip install ninja cmake pybind11 numpy psutil

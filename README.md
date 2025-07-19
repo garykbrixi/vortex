@@ -16,10 +16,23 @@ There are two main ways to interface with `vortex`:
 1. Use `vortex` as the inference engine for pre-trained multi-hybrids such as [Evo 2 40B](configs/evo2-40b-1m.yml). In this case, we recommend installing `vortex` in a new environment (see below).
 2. Import from `vortex` specific classes, kernels or utilities to work with custom convolutional multi-hybrids. For example,sourcing utilities from `hyena_ops.interface`.
 
+## 1. Pip install
 
-## 1. Pip install (easiest)
+The simplest way to install `vortex` is from PyPi or github.
 
-The simplest way to install `vortex` is from PyPi. This requires you to have dependencies already installed.
+### Requirements
+
+*   **PyTorch with CUDA:** Ensure you have a CUDA-enabled PyTorch installation compatible with your NVIDIA drivers and CUDA toolkit.
+*   **Transformer Engine 2:** Version 2.x of NVIDIA's Transformer Engine.
+*   **Flash Attention:** For optimized attention operations.
+
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+conda install transformer-engine-pytorch==2.3.0 # or use pip if available for your setup
+pip install flash-attn
+```
+
+### Installing vortex
 
 ```bash
 pip install vtx
