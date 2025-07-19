@@ -1,18 +1,6 @@
-#[build-system]
-#requires = [
-#    "torch",
-#    "setuptools>=42",
-#    "wheel",
-#    "cmake",
-#    "pybind11",
-#    "ninja",
-#    "numpy",
-#]
-#build-backend = "setuptools.build_meta"
-
 [project]
 name = "vtx"
-version = "1.0.6"
+version = "1.0.7"
 description = "Reference implementation of operators for deep signal processing architectures"
 readme = "README.md"
 authors = [{ name = "Michael Poli" }]
@@ -21,7 +9,8 @@ license = {file = "LICENSE"}
 dependencies = [
     "torch",
     "numpy",
-    "einops==0.8.0",
+    "einops==0.8.1",
+    "transformer_engine>=2.0.0",
     "packaging",
     "rich",
     "tqdm",
